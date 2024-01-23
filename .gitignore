@@ -1,0 +1,5 @@
+.bitcoin
+.lightning_nodes
+.direnv
+.envrc
+__pycache__
