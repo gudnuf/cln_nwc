@@ -1,0 +1,55 @@
+{
+   "url": "nostr+walletconnect://f7350e87d0c60358fd6ceccedc8a7d8356145e0eed6b456339fd3d6f6a6cdb96?relay=wss://relay.getalby.com/v1&secret=625abf077f8be5fb5e9345ff6ac8f32cb13d50d1198fee23130c81d0874bd0d8",
+   "pubkey": "4b9f972600a1100fdfcab968703bbdbe13eb649d03afc7532d0d98dce44999cc"
+}
+
+To create a Python function for decrypting a message based on the NIP-04 specification for encrypted direct messages in Nostr, you'll need to perform the following steps:
+
+Extract the Encrypted Message and Initialization Vector (IV): Parse the content to separate the base64-encoded encrypted text and the IV.
+Derive the Shared Secret: Use the recipient's public key and the sender's private key to derive the shared secret. According to the NIP-04 spec, you should use only the X coordinate of the shared point and not hash it.
+Decrypt the Message: Use AES-256-CBC to decrypt the message with the derived shared secret as the key and the extracted IV.
+Here's a Python function that performs these steps:
+
+python
+Copy code
+import base64
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives import serialization
+from coincurve import PrivateKey, PublicKey
+
+def decrypt_nip04(private_key_hex: str, public_key_hex: str, data: str) -> str:
+    # Parse the data to extract encrypted message and IV
+    encrypted_message_b64, iv_b64 = data.split('?iv=')
+    encrypted_message = base64.b64decode(encrypted_message_b64)
+    iv = base64.b64decode(iv_b64)
+
+    # Derive the shared secret
+    private_key = PrivateKey(bytes.fromhex(private_key_hex))
+    public_key_bytes = bytes.fromhex('02' + public_key_hex)
+    public_key = PublicKey(public_key_bytes)
+    shared_secret = private_key.ecdh(public_key.format())
+    shared_secret_x = shared_secret[:32]  # Use only the X coordinate
+
+    # Decrypt the message
+    cipher = Cipher(algorithms.AES(shared_secret_x), modes.CBC(iv), backend=default_backend())
+    decryptor = cipher.decryptor()
+    plaintext = decryptor.update(encrypted_message) + decryptor.finalize()
+
+    # Assuming the plaintext is UTF-8 encoded
+    return plaintext.decode('utf-8')
+
+# Example usage
+private_key_hex = 'your_private_key_in_hex'
+public_key_hex = 'recipient_public_key_in_hex'
+encrypted_data = 'base64_encrypted_data?iv=base64_encoded_iv'
+decrypted_text = decrypt_nip04(private_key_hex, public_key_hex, encrypted_data)
+print(decrypted_text)
+Important Notes:
+This function assumes that the private key and public key are provided as hexadecimal strings.
+The encrypted data should be in the format specified by NIP-04 (<encrypted_text>?iv=<initialization_vector>), with both parts base64-encoded.
+Error handling (such as for invalid keys, incorrect data format, or decryption errors) is not included in this example and should be implemented as needed.
+The shared secret derivation uses only the X coordinate of the ECDH shared point, as specified by NIP-04.
+The function assumes the plaintext is UTF-8 encoded. If a different encoding is used, adjust the decoding accordingly.
+Security considerations mentioned in the NIP-04 spec should be taken into account. This implementation is a direct interpretation of the spec and does not include any additional security features.
