@@ -1,24 +1,33 @@
 #!/usr/bin/env python3
+
+"""
+Entry point for this plugin
+"""
+
 try:
     from pyln.client import Plugin, Millisatoshi
     from coincurve import PrivateKey, PublicKey
     import threading
     import json
-    from lib.lib import NWCOptions, NWC, ISSUED_URI_BASE_KEY
+    from lib.lib import NWCOptions, NWC
     from lib.relay import Relay
-except Exception as e:
-    print("BAD STUFF", "{}".format(e)) # TODO: if something isn't installed then disable the plugin
+except ImportError as e:
+    # TODO: if something isn't installed then disable the plugin
+    print("BAD STUFF", f"{e}")
 
-# TODO: use the same format language for private and public keys, ie. priv_key vs privkey vs private_key, etc...
+# TODO: use the same format language for private and public keys, ie.
+# priv_key vs privkey vs private_key, etc...
 
 DEFAULT_RELAY = 'wss://relay.getalby.com/v1'
 
 plugin = Plugin()
 
+
 @plugin.init()
-def init(options, configuration, plugin: Plugin, **kwargs):
+def init(options, configuration, plugin: Plugin):
+    """initialize the plugin"""
     # TODO: create a Main class that implements Keys, Relay, Plugin
-    plugin.priv_key = bytes.fromhex("000001") # TODO: set a real privkey
+    plugin.priv_key = bytes.fromhex("000001")  # TODO: set a real privkey
     plugin.pub_key = PublicKey.from_secret(plugin.priv_key).format().hex()[2:]
 
     uri = DEFAULT_RELAY
@@ -26,16 +35,19 @@ def init(options, configuration, plugin: Plugin, **kwargs):
 
     # start a new thread for the relay
     # for now this also handles all the event handling logic
-    # TODO: move the event handling logic to a NWC class that is the class for this protocol
+    # TODO: move the event handling logic to a NWC class that is the class for
+    # this protocol
     relay_thread = threading.Thread(target=relay.start)
     relay_thread.start()
-    
+
     plugin.log(f"connected to {uri}", 'info')
 
 
 # https://github.com/nostr-protocol/nips/blob/master/47.md#example-connection-string
 @plugin.method("nwc-create")
-def create_nwc_uri(plugin: Plugin, expiry_unix: int = None, budget_msat: int = None):
+def create_nwc_uri(plugin: Plugin, expiry_unix: int = None,
+                   budget_msat: int = None):
+    """Create a new nostr wallet connection"""
     wallet_pubkey = plugin.pub_key
     relay_url = DEFAULT_RELAY
 
@@ -65,5 +77,6 @@ def create_nwc_uri(plugin: Plugin, expiry_unix: int = None, budget_msat: int = N
         "url": nwc.url,
         "pubkey": nwc.pubkey
     }
-    
+
+
 plugin.run()

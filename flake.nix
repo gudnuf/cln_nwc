@@ -96,6 +96,8 @@
               coincurve
               websockets
               jupyter
+              pylint
+              autopep8
             ]))
           ];
           # Automatically run jupyter when entering the shell.

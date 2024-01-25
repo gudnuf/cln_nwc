@@ -6,8 +6,9 @@ import os
 
 # NIP04 spec: https://github.com/nostr-protocol/nips/blob/master/04.md
 
-# these functions are adapted from 
+# these functions are adapted from
 # https://github.com/monty888/monstr/blob/cb728f1710dc47c8289ab0994f15c24e844cebc4/src/monstr/encrypt.py
+
 
 def get_ecdh_key(secret_key: str, pubkey_hex: str):
     """
@@ -20,19 +21,21 @@ def get_ecdh_key(secret_key: str, pubkey_hex: str):
     Returns:
     bytes: The shared secret derived from the ECDH key exchange.
     """
-    
+
     pubkey_bytes = bytes.fromhex('02' + pubkey_hex)
 
-    # convert pubkey to ec EllipticCurvePublicKey instance 
-    ec_key = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256K1(), pubkey_bytes)
+    # convert pubkey to ec EllipticCurvePublicKey instance
+    ec_key = ec.EllipticCurvePublicKey.from_encoded_point(
+        ec.SECP256K1(), pubkey_bytes)
 
     # convert secret to ec EllipticCurvePrivateKey instance
     sk = ec.derive_private_key(int(secret_key, 16), ec.SECP256K1())
 
-    #perform elliptic curve Diffie-Helman key exchange
+    # perform elliptic curve Diffie-Helman key exchange
     shared_key = sk.exchange(ec.ECDH(), ec_key)
 
     return shared_key
+
 
 def process_aes(data: bytes, key: bytes, iv: bytes, mode: str) -> bytes:
     """
@@ -58,8 +61,9 @@ def process_aes(data: bytes, key: bytes, iv: bytes, mode: str) -> bytes:
     if mode == 'decrypt':
         unpadder = padding.PKCS7(128).unpadder()
         result = unpadder.update(result) + unpadder.finalize()
-    
+
     return result
+
 
 def encrypt(secret_key: str, pubkey_hex: str, data: str) -> str:
     """
@@ -87,7 +91,9 @@ def encrypt(secret_key: str, pubkey_hex: str, data: str) -> str:
     encrypted_data = process_aes(padded_data, shared_key, iv, 'encrypt')
 
     # return as base 65 string
-    return base64.b64encode(encrypted_data).decode() + '?iv=' + base64.b64encode(iv).decode()
+    return base64.b64encode(encrypted_data).decode() + \
+        '?iv=' + base64.b64encode(iv).decode()
+
 
 def decrypt(secret_key: str, pubkey_hex: str, data: str) -> str:
     """
@@ -101,7 +107,7 @@ def decrypt(secret_key: str, pubkey_hex: str, data: str) -> str:
     Returns:
     str: The decrypted plaintext data.
     """
-   
+
     shared_key = get_ecdh_key(secret_key, pubkey_hex)
 
     # split the data into encrypted data and IV then decode
@@ -126,7 +132,7 @@ def decrypt(secret_key: str, pubkey_hex: str, data: str) -> str:
 
 # encrypted = encrypt(secret_key=priv, pubkey_hex=pub, data=text)
 # print("ENCRYPTED", encrypted)
- 
+
 # decrypted = decrypt(secret_key=priv, pubkey_hex=pub, data=encrypted)
 # print("DECRYPTED", decrypted)
 

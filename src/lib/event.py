@@ -1,33 +1,40 @@
+"""
+Defines classes for handling events
+"""
+
 import hashlib
-from coincurve import PrivateKey
 import time
 import json
+from coincurve import PrivateKey
+from pyln.client import Plugin
 from . import nip04
 from .utils import get_hex_pub_key
-from pyln.client import Plugin
 from .lib import ISSUED_URI_BASE_KEY
 
-# copied EventTags exactly from 
+# copied EventTags exactly from
 # https://github.com/monty888/monstr/blob/cb728f1710dc47c8289ab0994f15c24e844cebc4/src/monstr/event/event.py
+
+
 class EventTags:
     """
         split out so we can use event tags without have to create the whole event
     """
+
     def __init__(self, tags):
         self.tags = tags
 
     @property
     def tags(self):
+        "access the tags property"
         return self._tags
 
     @tags.setter
     def tags(self, tags):
-
         # if passed in as json str e.g. as event is received over ws
         if isinstance(tags, str):
             try:
                 tags = json.loads(tags)
-            except json.JSONDecodeError as je:
+            except json.JSONDecodeError:
                 tags = None
 
         if tags is None:
@@ -36,7 +43,8 @@ class EventTags:
 
     def get_tags(self, tag_name: str):
         """
-        returns tag data for tag_name, no checks on the data e.g. that #e, event id is long enough to be valid event
+        returns tag data for tag_name, no checks on the data
+        e.g. that #e, event id is long enough to be valid event
         :param tag_name:
         :return:
         """
@@ -51,7 +59,8 @@ class EventTags:
         """
         return [t[0] for t in self.get_tags(tag_name)]
 
-    def get_tag_value_pos(self, tag_name: str, pos: int = 0, default: str = None) -> str:
+    def get_tag_value_pos(self, tag_name: str, pos: int = 0,
+                          default: str = None) -> str:
         """
             returns tag value (first el after tag name) for given tag_name at pos,
             if there isn't a tag at that pos then default is returned
@@ -69,7 +78,7 @@ class EventTags:
     @property
     def tag_names(self) -> set:
         # return all unique tag names
-        return {c_tag[0] for c_tag in self._tags if len(c_tag)>0}
+        return {c_tag[0] for c_tag in self._tags if len(c_tag) > 0}
 
     @property
     def e_tags(self):
@@ -98,8 +107,10 @@ class EventTags:
         for c_tag in self._tags:
             yield c_tag
 
-# copied some + adapted to use coincurve from 
+# copied some + adapted to use coincurve from
 # https://github.com/monty888/monstr/blob/cb728f1710dc47c8289ab0994f15c24e844cebc4/src/monstr/event/event.py
+
+
 class Event:
     @staticmethod
     def from_JSON(evt_json):
@@ -119,8 +130,9 @@ class Event:
             pub_key=evt_json['pubkey'],
             created_at=evt_json['created_at']
         )
-    
-    def __init__(self, id=None, sig=None, kind=None, content=None, tags=None, pub_key=None, created_at=None):
+
+    def __init__(self, id=None, sig=None, kind=None, content=None,
+                 tags=None, pub_key=None, created_at=None):
         self._id = id
         self._sig = sig
         self._kind = kind
@@ -143,7 +155,8 @@ class Event:
             see https://github.com/fiatjaf/nostr/blob/master/nips/01.md
         """
         if self._pub_key is None:
-            raise Exception('Event::serialize can\'t be done unless pub key is set')
+            raise Exception(
+                'Event::serialize can\'t be done unless pub key is set')
 
         ret = json.dumps([
             0,
@@ -193,30 +206,40 @@ class Event:
             'content': self._content,
             'sig': self._sig
         }
-    
+
     @staticmethod
     def find_unique(plugin: Plugin, pub_key: str):
-        connection_key = ISSUED_URI_BASE_KEY.copy() # TODO: this probably shouldn't be on the Event class
+        # TODO: this probably shouldn't be on the Event class
+        connection_key = ISSUED_URI_BASE_KEY.copy()
         connection_key.append(pub_key)
-        connection_record = plugin.rpc.listdatastore(key=connection_key)["datastore"] # TODO: error handling
+        connection_record = plugin.rpc.listdatastore(
+            key=connection_key)["datastore"]  # TODO: error handling
         return connection_record
-    
+
+
 class NIP47Response(Event):
-    def __init__(self, content: str, nip04_pub_key, referenced_event_id: str, priv_key: str):
+    def __init__(self, content: str, nip04_pub_key,
+                 referenced_event_id: str, priv_key: str):
         # encrypt response payload
         encrypted_content = nip04.encrypt(
-            secret_key=priv_key, 
-            pubkey_hex=nip04_pub_key, 
+            secret_key=priv_key,
+            pubkey_hex=nip04_pub_key,
             data=content
-            )
-        
+        )
+
         event_pub_key = get_hex_pub_key(priv_key=priv_key)
         p_tag = ['p', nip04_pub_key]
         e_tag = ['e', referenced_event_id]
         # create kind 23195 (nwc response) event with encrypted payload
-        super().__init__(content=encrypted_content, pub_key=event_pub_key, tags=[p_tag, e_tag], kind=23195)
-        
-        self._priv_key = priv_key # QUESTION: bad idea to set the priv key on the class?
+        super().__init__(
+            content=encrypted_content,
+            pub_key=event_pub_key,
+            tags=[
+                p_tag,
+                e_tag],
+            kind=23195)
+
+        self._priv_key = priv_key  # QUESTION: bad idea to set the priv key on the class?
 
     def sign(self):
         return super().sign(priv_key=self._priv_key)
