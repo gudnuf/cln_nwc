@@ -4,8 +4,8 @@ try:
     from coincurve import PrivateKey, PublicKey
     import threading
     import json
-    from lib import NWCOptions, NWC, ISSUED_URI_BASE_KEY
-    from relay import Relay
+    from lib.lib import NWCOptions, NWC, ISSUED_URI_BASE_KEY
+    from lib.relay import Relay
 except Exception as e:
     print("BAD STUFF", "{}".format(e)) # TODO: if something isn't installed then disable the plugin
 

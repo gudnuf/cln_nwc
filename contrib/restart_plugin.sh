@@ -3,7 +3,7 @@
 
 set -eu
 
-default_plugin_path=$(pwd)/nwc.py
+default_plugin_path=$(pwd)/src/nwc.py
 
 # Check if .env file exists
 if [ -f ".env" ]; then

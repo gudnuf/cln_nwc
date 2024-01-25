@@ -3,7 +3,7 @@ import websockets
 import json
 import uuid
 from pyln.client import Plugin, RpcError
-from event import Event, NIP47Response
+from .event import Event, NIP47Response
 
 
 class Relay:

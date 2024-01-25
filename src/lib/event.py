@@ -2,10 +2,10 @@ import hashlib
 from coincurve import PrivateKey
 import time
 import json
-import nip04
-from utils import get_hex_pub_key
+from . import nip04
+from .utils import get_hex_pub_key
 from pyln.client import Plugin
-from lib import ISSUED_URI_BASE_KEY
+from .lib import ISSUED_URI_BASE_KEY
 
 # copied EventTags exactly from 
 # https://github.com/monty888/monstr/blob/cb728f1710dc47c8289ab0994f15c24e844cebc4/src/monstr/event/event.py
