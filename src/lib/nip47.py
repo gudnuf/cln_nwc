@@ -105,6 +105,7 @@ class NIP47Request(Event):
 
         print(f"CONNECTION {connection}")
 
+        code = None
         if not connection:
             code = "UNAUTHORIZED"
 
