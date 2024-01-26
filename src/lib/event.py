@@ -6,7 +6,6 @@ import hashlib
 import time
 import json
 from coincurve import PrivateKey
-from . import nip04
 
 # copied EventTags exactly from
 # https://github.com/monty888/monstr/blob/cb728f1710dc47c8289ab0994f15c24e844cebc4/src/monstr/event/event.py
@@ -144,8 +143,6 @@ class Event:
         self._pub_key = pub_key
 
         self._tags = EventTags(tags)
-
-        self.nip04 = nip04
 
     def serialize(self):
         """

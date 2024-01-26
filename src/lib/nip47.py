@@ -130,7 +130,7 @@ class NIP47Request(Event):
 
     def decrypt_content(self, dh_priv_key_hex: str):
         """Use nip04 to decrypt the event content"""
-        return self.nip04.decrypt(
+        return nip04.decrypt(
             secret_key=dh_priv_key_hex,
             pubkey_hex=self._pub_key,
             data=self._content
