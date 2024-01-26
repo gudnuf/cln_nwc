@@ -53,7 +53,7 @@ class Relay:
 
         self._running = True
 
-    def start(self):
+    def listen_for_nip47_requests(self):
         """start the asyncio event loop"""
         asyncio.run(self.run())
 

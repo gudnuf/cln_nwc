@@ -33,11 +33,11 @@ def init(options, configuration, plugin: Plugin):
     uri = DEFAULT_RELAY
     relay = Relay(plugin, uri)
 
-    # start a new thread for the relay
     # for now this also handles all the event handling logic
     # TODO: move the event handling logic to a NWC class that is the class for
     # this protocol
-    relay_thread = threading.Thread(target=relay.start)
+    # start a new thread for the relay
+    relay_thread = threading.Thread(target=relay.listen_for_nip47_requests)
     relay_thread.start()
 
     plugin.log(f"connected to {uri}", 'info')
