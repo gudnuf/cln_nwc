@@ -22,106 +22,78 @@ class Relay:
         self._plugin: Plugin = plugin
         if not self._plugin or not self._plugin.pub_key:
             raise ValueError()
-        # TODO: create responses more dynamically
-        self._responses = {
-            'UNAUTHORIZED': {
-                "result_type": None,
-                "error": {
-                    "code": "UNAUTHORIZED"
-                }
-            },
-            'OTHER': {
-                "result_type": None,
-                "error": {
-                    "code": "OTHER"
-                }
-            }
-        }
-
-        self._method_handlers = {
-            "pay_invoice": self._pay_invoice
-        }
-
-        # this is the current event that the relay is handling
-        # TODO: make event handlign seperate, probably in nip47 class
-        self._current_event_id: str = None
-
-    async def run(self):
-        """connect and subscribe to the relay"""
-        self._listen = True
-        await self.connect()  # TODO: error handling
-
-        self._running = True
 
     def listen_for_nip47_requests(self):
         """start the asyncio event loop"""
         asyncio.run(self.run())
 
-    async def connect(self):
-        """connect to the relay, subscribe to the nwc filter, and start listening"""
-        async with websockets.connect(self.uri) as ws:
-            self.ws = ws
+    async def run(self):
+        """connect, subscribe, and listen for incoming events"""
+        self._listen = True
+        await self.connect()  # TODO: error handling
 
-            # TODO, connect should just connect to the relay
-            await self.subscribe(filter={
+        await self.subscribe(filter={
                 "kinds": [23194],
                 "#p": [self._plugin.pub_key]
-            }, ws=ws)
+            })
 
-            while self._listen:
-                message = await ws.recv()
-                data = json.loads(message)
+        await self.listen()
 
-                if data[0] == "EVENT":
-                    await self.on_event(data=data[2])
-                elif data[0] == "OK":
-                    self._plugin.log(f"OK received {data}")
-                elif data[0] == "CLOSED":
-                    self._plugin.log(f"CLOSED received {data}")
+        self._running = True
+
+    async def connect(self):
+        self.ws = await websockets.connect(self.uri)
 
     async def disconnect(self):
         """close websocket connection"""
         if self._running:
             asyncio.get_event_loop().run_until_complete(self.ws.close())
 
-    async def subscribe(self, filter, ws):
+    async def listen(self):
+        """Listen for messages from the relay"""
+        async for message in self.ws:
+            data = json.loads(message)
+            if data[0] == "EVENT":
+                await self.on_event(data=data[2])
+            elif data[0] == "OK":
+                self._plugin.log(f"OK received {data}")
+            elif data[0] == "CLOSED":
+                self._plugin.log(f"CLOSED received {data}")
+
+    async def subscribe(self, filter):
         """subscribe to a filter"""
         self._plugin.log(f"SUBSCRIBING: {filter}")
+
         sub_id = str(uuid.uuid4())[:64]
-        await ws.send(json.dumps(["REQ", sub_id, filter]))
+        await self.ws.send(json.dumps(["REQ", sub_id, filter]))
 
         self.subscriptions[sub_id] = filter
+
         return sub_id
 
-    async def publish(self, event):
-        """send and event to the relay"""
-        await self.ws.send(json.dumps(["EVENT", event]))
-
     async def send_event(self, event_data):
-        """send a nip47 response event"""
+        """send an event to the relay"""
         try:
             event = json.dumps(["EVENT", event_data])
-            self._plugin.log(
-                f"SENDING EVENT: \n {event} \n")
-            self._plugin.log(f"WS{self.ws}")
+            
             await self.ws.send(event)
         # TODO: make sure this is the right exception to catch
         except websockets.exceptions.WebSocketException as e:
             print(f"Error broadcasting {e}")
 
     async def on_event(self, data: str):
-        """handle incoming NIP47 requestevents"""
+        """handle incoming NIP47 request events"""
         request = NIP47Request.from_JSON(evt_json=data, relay=self)
-        # event = Event.from_JSON(evt_json=data)
-        response = await request.process_request(
+
+        response_content = await request.process_request(
             plugin=self._plugin, 
             dh_priv_key_hex=self._plugin.priv_key.hex()
             )
-        
-        self._plugin.log(f"RESPOSNE: {response}")
-        # decrypted_payload = request.decrypt_content(self._plugin.priv_key)
+
+        self._plugin.log(f"RESPOSNE: {response_content}")
+
         response_event = NIP47Response(
-            content=json.dumps(response),
+            content=json.dumps(response_content),
             nip04_pub_key=request._pub_key,
             referenced_event_id=request._id,
             priv_key=self._plugin.priv_key.hex()
@@ -130,10 +102,3 @@ class Relay:
         response_event.sign()
 
         await self.send_event(response_event.event_data())
-
-    async def _pay_invoice(self, params):
-        # TODO: validate params for this method
-        invoice = params.get("invoice")
-        if not invoice:
-            raise LookupError("no invoice found when trying to pay :(")
-        self._plugin.rpc.pay(bolt11=invoice)
