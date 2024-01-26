@@ -1,9 +1,11 @@
 import json
-from pyln.client import Plugin, RpcError
+from dataclasses import dataclass
+from urllib.parse import urlparse, parse_qs
+from pyln.client import Plugin, RpcError, Millisatoshi
+from coincurve import PublicKey
 from .event import Event
-from .utils import get_hex_pub_key, find_connection
+from .utils import get_hex_pub_key
 from . import nip04
-
 
 class NIP47Response(Event):
     def __init__(self, content: str, nip04_pub_key,
@@ -101,7 +103,7 @@ class NIP47Request(Event):
     async def process_request(self, plugin: Plugin, dh_priv_key_hex: str):
         request_payload = json.loads(self.decrypt_content(dh_priv_key_hex))
 
-        connection = find_connection(plugin=plugin, pub_key=self._pub_key)
+        connection = NIP47URI.find_unique(plugin=plugin, pub_key=self._pub_key)
 
         print(f"CONNECTION {connection}")
 
@@ -135,3 +137,75 @@ class NIP47Request(Event):
             pubkey_hex=self._pub_key,
             data=self._content
             )
+    
+@dataclass
+class URIOptions:
+    """defines options for creating a new NWC instance"""
+    relay_url: str = None
+    secret: str = None
+    wallet_pubkey: str = None
+    nostr_wallet_connect_url: str = None
+    expiry_unix: int = None
+    budget_msat: Millisatoshi = None
+
+ISSUED_URI_BASE_KEY = ["nwc", "uri"]
+class NIP47URI:
+    """handle nostr wallet connects"""
+    @staticmethod
+    def parse_wallet_connect_url(url: str):
+        parsed = urlparse(url=url)
+        options = URIOptions()
+        options.wallet_pubkey = parsed.hostname
+
+        query_params = parse_qs(parsed.query)
+        options.secret = query_params.get("secret", [None])[0]
+        options.relay_url = query_params.get("relay", [None])[0]
+
+        return options
+    
+    @staticmethod
+    def find_unique(plugin, pub_key):
+        """find the nostr wallet connection in db"""
+
+        # TODO: this probably shouldn't be on the Event class
+        connection_key = ISSUED_URI_BASE_KEY.copy()
+        connection_key.append(pub_key)
+        connection_record = plugin.rpc.listdatastore(
+            key=connection_key)["datastore"]  # TODO: error handling
+        return connection_record
+
+    @staticmethod
+    def construct_wallet_connect_url(options: URIOptions):
+        """builds and returns the nwc uri"""
+        if options.nostr_wallet_connect_url:
+            return options.nostr_wallet_connect_url
+
+        return f'nostr+walletconnect://{options.wallet_pubkey}?relay={options.relay_url}&secret={options.secret}'
+
+    def __init__(self, options: URIOptions):
+        self.url = options.nostr_wallet_connect_url
+        if self.url:
+            options = self.parse_wallet_connect_url(self.url)
+        else:
+            if not options.relay_url:
+                raise ValueError("relay url is required")
+            if not options.secret:
+                raise ValueError("secret is require")
+            if not options.wallet_pubkey:
+                raise ValueError("wallet pubkey is required")
+            self.url = self.construct_wallet_connect_url(options)
+
+        self.relay_url = options.relay_url
+        self.secret = options.secret
+        self.pubkey = PublicKey.from_secret(
+            bytes.fromhex(self.secret)).format().hex()[2:]
+        self.wallet_pubkey = options.wallet_pubkey
+        self.expiry_unix = options.expiry_unix
+        self.budget_msat = options.budget_msat
+
+    @property
+    def datastore_key(self):
+        """get the key for handling connections in the db"""
+        key = ISSUED_URI_BASE_KEY.copy()
+        key.append(self.pubkey)
+        return key

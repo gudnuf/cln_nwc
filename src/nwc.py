@@ -9,7 +9,7 @@ try:
     from coincurve import PrivateKey, PublicKey
     import threading
     import json
-    from lib.lib import NWCOptions, NWC
+    from lib.nip47 import URIOptions, NIP47URI
     from lib.relay import Relay
 except ImportError as e:
     # TODO: if something isn't installed then disable the plugin
@@ -55,7 +55,7 @@ def create_nwc_uri(plugin: Plugin, expiry_unix: int = None,
     sk = PrivateKey()
     secret = sk.secret.hex()
 
-    options = NWCOptions(
+    options = URIOptions(
         relay_url=relay_url,
         secret=secret,
         wallet_pubkey=wallet_pubkey,
@@ -63,7 +63,7 @@ def create_nwc_uri(plugin: Plugin, expiry_unix: int = None,
         budget_msat=Millisatoshi(budget_msat or 0)
     )
 
-    nwc = NWC(options=options)
+    nwc = NIP47URI(options=options)
 
     data_string = json.dumps({
         "secret": nwc.secret,
