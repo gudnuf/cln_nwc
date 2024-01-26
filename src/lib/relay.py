@@ -3,9 +3,9 @@
 import asyncio
 import json
 import uuid
+from pyln.client import Plugin
 import websockets
-from pyln.client import Plugin, RpcError
-from .event import Event, NIP47Response
+from .nip47 import NIP47Response, NIP47Request
 
 
 class Relay:
@@ -97,88 +97,39 @@ class Relay:
         """send and event to the relay"""
         await self.ws.send(json.dumps(["EVENT", event]))
 
-    # TODO: make this part of NIP47 class
-    # TODO: make this accepts the response coneent
-    async def send_response(self, code: str, nip04_pub_key: str):
+    async def send_event(self, event_data):
         """send a nip47 response event"""
-        self._plugin.log(f"nip47 error code: {code}")
-
-        content = self._responses.get(code, None)
-        if not content:
-            content = self._responses.get("OTHER")
-        content_str = json.dumps(content)
-        response = NIP47Response(
-            content_str,
-            nip04_pub_key,
-            referenced_event_id=self._current_event_id,
-            priv_key=self._plugin.priv_key.hex()
-        )
-        response.sign()
         try:
-            event = json.dumps(["EVENT", response.event_data()])
+            event = json.dumps(["EVENT", event_data])
             self._plugin.log(
-                f"SENDING EVENT: \n {event} \n PAYLOAD: {content}")
+                f"SENDING EVENT: \n {event} \n")
+            self._plugin.log(f"WS{self.ws}")
             await self.ws.send(event)
         # TODO: make sure this is the right exception to catch
         except websockets.exceptions.WebSocketException as e:
             print(f"Error broadcasting {e}")
 
     async def on_event(self, data: str):
-        """handle incoming events"""
-        event = Event.from_JSON(evt_json=data)
-
-        decrypted_payload = event.nip04.decrypt(
-            secret_key=self._plugin.priv_key.hex(),  # TODO: handle _plugin.priv_key
-            pubkey_hex=event._pub_key,
-            data=event._content
+        """handle incoming NIP47 requestevents"""
+        request = NIP47Request.from_JSON(evt_json=data, relay=self)
+        # event = Event.from_JSON(evt_json=data)
+        response = await request.process_request(
+            plugin=self._plugin, 
+            dh_priv_key_hex=self._plugin.priv_key.hex()
+            )
+        
+        self._plugin.log(f"RESPOSNE: {response}")
+        # decrypted_payload = request.decrypt_content(self._plugin.priv_key)
+        response_event = NIP47Response(
+            content=json.dumps(response),
+            nip04_pub_key=request._pub_key,
+            referenced_event_id=request._id,
+            priv_key=self._plugin.priv_key.hex()
         )
 
-        # TODO: implement NIP47 request
-        request = json.loads(decrypted_payload)
+        response_event.sign()
 
-        self._plugin.log(f"DECRYPTED {request}")
-
-        connection = Event.find_unique(
-            plugin=self._plugin, pub_key=event._pub_key)
-
-        self._current_event_id = event._id
-
-        if not connection:  # connection not found
-            # send UNAUTHORIZED error response
-            await self.send_response("UNAUTHORIZED", nip04_pub_key=event._pub_key)
-            return
-
-        nip47_method = request.get("method")
-        nip47_event_handler = self._method_handlers.get(nip47_method)
-
-        if not nip47_event_handler:
-            # send NOT_IMPLEMENTED error response
-            await self.send_response("NOT_IMPLEMENTED", nip04_pub_key=event._pub_key)
-            return
-
-        try:
-            # execute the function
-            await nip47_event_handler(params=request.get("params"))
-            # TODO: validate connection. ie. budget, expiry, status?
-        except RpcError as e:
-            self._plugin.log(f"Error executing nip47 request: {e.error}")
-            await self.send_response("OTHER", nip04_pub_key=event._pub_key)
-
-    # async def listen(self):
-    #     """"""
-    #     self._listen = True
-    #     try:
-    #         while self._listen:
-    #             message = await self.ws.recv()
-    #             data = json.loads(message)
-    #             if data[0] == "EVENT":
-    #                 await self.on_event(data[2])
-    #             elif data[0] == "OK":
-    #                 pass
-    #             elif data[0] == "CLOSED":
-    #                 break
-    #     except Exception as e:
-    #         print(f"WebSocket error: {e}")
+        await self.send_event(response_event.event_data())
 
     async def _pay_invoice(self, params):
         # TODO: validate params for this method

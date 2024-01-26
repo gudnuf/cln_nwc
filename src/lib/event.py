@@ -6,10 +6,7 @@ import hashlib
 import time
 import json
 from coincurve import PrivateKey
-from pyln.client import Plugin
 from . import nip04
-from .utils import get_hex_pub_key
-from .lib import ISSUED_URI_BASE_KEY
 
 # copied EventTags exactly from
 # https://github.com/monty888/monstr/blob/cb728f1710dc47c8289ab0994f15c24e844cebc4/src/monstr/event/event.py
@@ -206,40 +203,3 @@ class Event:
             'content': self._content,
             'sig': self._sig
         }
-
-    @staticmethod
-    def find_unique(plugin: Plugin, pub_key: str):
-        # TODO: this probably shouldn't be on the Event class
-        connection_key = ISSUED_URI_BASE_KEY.copy()
-        connection_key.append(pub_key)
-        connection_record = plugin.rpc.listdatastore(
-            key=connection_key)["datastore"]  # TODO: error handling
-        return connection_record
-
-
-class NIP47Response(Event):
-    def __init__(self, content: str, nip04_pub_key,
-                 referenced_event_id: str, priv_key: str):
-        # encrypt response payload
-        encrypted_content = nip04.encrypt(
-            secret_key=priv_key,
-            pubkey_hex=nip04_pub_key,
-            data=content
-        )
-
-        event_pub_key = get_hex_pub_key(priv_key=priv_key)
-        p_tag = ['p', nip04_pub_key]
-        e_tag = ['e', referenced_event_id]
-        # create kind 23195 (nwc response) event with encrypted payload
-        super().__init__(
-            content=encrypted_content,
-            pub_key=event_pub_key,
-            tags=[
-                p_tag,
-                e_tag],
-            kind=23195)
-
-        self._priv_key = priv_key  # QUESTION: bad idea to set the priv key on the class?
-
-    def sign(self):
-        return super().sign(priv_key=self._priv_key)
