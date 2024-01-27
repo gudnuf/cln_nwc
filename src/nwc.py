@@ -30,17 +30,15 @@ def init(options, configuration, plugin: Plugin):
     plugin.priv_key = bytes.fromhex("000001")  # TODO: set a real privkey
     plugin.pub_key = PublicKey.from_secret(plugin.priv_key).format().hex()[2:]
 
-    uri = DEFAULT_RELAY
-    relay = Relay(plugin, uri)
+    # create a relay instance to listent for incoming nip47 requests
+    url = DEFAULT_RELAY
+    relay = Relay(plugin, url)
 
-    # for now this also handles all the event handling logic
-    # TODO: move the event handling logic to a NWC class that is the class for
-    # this protocol
     # start a new thread for the relay
     relay_thread = threading.Thread(target=relay.listen_for_nip47_requests)
     relay_thread.start()
 
-    plugin.log(f"connected to {uri}", 'info')
+    plugin.log(f"connected to {url}", 'info')
 
 
 # https://github.com/nostr-protocol/nips/blob/master/47.md#example-connection-string

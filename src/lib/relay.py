@@ -33,9 +33,9 @@ class Relay:
         await self.connect()  # TODO: error handling
 
         await self.subscribe(filter={
-                "kinds": [23194],
-                "#p": [self._plugin.pub_key]
-            })
+            "kinds": [23194],
+            "#p": [self._plugin.pub_key]
+        })
 
         await self.listen()
 
@@ -75,7 +75,7 @@ class Relay:
         """send an event to the relay"""
         try:
             event = json.dumps(["EVENT", event_data])
-            
+
             await self.ws.send(event)
         # TODO: make sure this is the right exception to catch
         except websockets.exceptions.WebSocketException as e:
@@ -86,9 +86,9 @@ class Relay:
         request = NIP47Request.from_JSON(evt_json=data, relay=self)
 
         response_content = await request.process_request(
-            plugin=self._plugin, 
+            plugin=self._plugin,
             dh_priv_key_hex=self._plugin.priv_key.hex()
-            )
+        )
 
         self._plugin.log(f"RESPOSNE: {response_content}")
 

@@ -8,6 +8,7 @@ from .event import Event
 from .utils import get_hex_pub_key
 from . import nip04
 
+
 @dataclass
 class URIOptions:
     """defines options for creating a new NWC instance"""
@@ -41,7 +42,6 @@ class NIP47URI:
     def find_unique(plugin, pub_key):
         """find the nostr wallet connection in db"""
 
-        # TODO: this probably shouldn't be on the Event class
         connection_key = ISSUED_URI_BASE_KEY.copy()
         connection_key.append(pub_key)
         connection_record = plugin.rpc.listdatastore(
@@ -243,7 +243,8 @@ class NIP47Request(Event):
         if not connection:
             code = "UNAUTHORIZED"
 
-        request_handler = NIP47RequestHandler(connection=connection, request=request_payload, plugin=plugin)
+        request_handler = NIP47RequestHandler(
+            connection=connection, request=request_payload, plugin=plugin)
 
         if not request_handler:
             code = "NOT_IMPLEMENTED"
@@ -273,5 +274,4 @@ class NIP47Request(Event):
             secret_key=dh_priv_key_hex,
             pubkey_hex=self._pub_key,
             data=self._content
-            )
-    
+        )
