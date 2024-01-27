@@ -57,7 +57,7 @@ def create_nwc_uri(plugin: Plugin, expiry_unix: int = None,
         relay_url=relay_url,
         secret=secret,
         wallet_pubkey=wallet_pubkey,
-        expiry_unix=expiry_unix,
+        expiry_unix=expiry_unix or None,
         budget_msat=Millisatoshi(budget_msat) if budget_msat else None
     )
 

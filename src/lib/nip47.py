@@ -48,12 +48,16 @@ class NIP47URI:
             key=connection_key)["datastore"]  # TODO: error handling
         if connection_record:
             connection_data = json.loads(connection_record[0].get("string"))
+            
+            budget_msat = connection_data.get("budget_msat", None)
+            spent_msat = connection_data.get("spent_msat")
+            expiry_unix = connection_data.get("expiry_unix", None)
 
             return NIP47URI(options=URIOptions(
                 secret=connection_data.get("secret"),
-                budget_msat=connection_data.get("budget_msat"),
-                spent_msat=connection_data.get("spent_msat"),
-                expiry_unix=connection_data.get("expiry_unix"),
+                budget_msat=Millisatoshi(budget_msat) if budget_msat else None,
+                spent_msat=Millisatoshi(spent_msat),
+                expiry_unix=expiry_unix,
                 # TODO: figure out how to not have to pass relay and wallet pubkey for this
                 relay_url="wss://relay.getalby.com/v1",
                 wallet_pubkey="placeholder"
@@ -87,8 +91,8 @@ class NIP47URI:
         self.pubkey = PublicKey.from_secret(
             bytes.fromhex(self.secret)).format().hex()[2:]
         self.wallet_pubkey = options.wallet_pubkey
-        self.expiry_unix = options.expiry_unix or float('inf')
-        self.budget_msat = options.budget_msat or float('inf')
+        self.expiry_unix = options.expiry_unix or None
+        self.budget_msat = options.budget_msat or None
         self.spent_msat = options.spent_msat
 
     @property
@@ -101,16 +105,19 @@ class NIP47URI:
     @property
     def remaining_budget(self):
         total_budget = Millisatoshi(
-            self.budget_msat) if self.budget_msat else float('inf')
+            self.budget_msat)
         spent = Millisatoshi(self.spent_msat)
         return total_budget - spent
 
     def expired(self):
+        if not self.expiry_unix:
+            return False
         now = int(time.time())
         print("NOW", now, "\nEXPIRE", self.expiry_unix)
         if now > self.expiry_unix:
             return True
         return False
+    
 
 
 class NIP47Response(Event):
@@ -179,13 +186,20 @@ class NIP47RequestHandler:
         invoice_msat = self._plugin.rpc.decodepay(
             bolt11=invoice).get("amount_msat", 0)
 
-        if self.connection.remaining_budget < invoice_msat:
+        if self.connection.budget_msat and self.connection.remaining_budget < invoice_msat:
             return {
                 "code": "QUOTA_EXCEEDED"
             }
 
         try:
-            preimage = await self._plugin.rpc.pay(bolt11=invoice)
+            pay_result = self._plugin.rpc.pay(bolt11=invoice)
+            preimage = pay_result.get("payment_preimage", None)
+            if not preimage:
+                return {
+                    "code": "OTHER"
+                }
+            amount_sent_msat = pay_result.get("amount_sent_msat")
+            self.add_to_spent(amount_sent_msat)
             return {
                 "preimage": preimage
             }
@@ -195,6 +209,16 @@ class NIP47RequestHandler:
                 "code": "OTHER",
                 "message": e.error
             }
+    def add_to_spent(self, amount_sent_msat):
+        key = self.connection.datastore_key
+        print(f"SPENT: {self.connection.spent_msat} \n {Millisatoshi(amount_sent_msat)}")
+        new_amount = self.connection.spent_msat + Millisatoshi(amount_sent_msat)
+        self._plugin.rpc.datastore(key=key, string=json.dumps({
+            "secret": self.connection.secret,
+            "budget_msat": self.connection.budget_msat,
+            "expiry_unix": self.connection.expiry_unix,
+            "spent_msat": new_amount
+        }), mode="must-replace")
 
 
 class NIP47Request(Event):
@@ -246,7 +270,7 @@ class NIP47Request(Event):
         request_handler = NIP47RequestHandler(
             connection=connection, request=request_payload, plugin=plugin)
 
-        if not request_handler:
+        if not request_handler.handler:
             code = "NOT_IMPLEMENTED"
 
         if not code:
@@ -263,7 +287,7 @@ class NIP47Request(Event):
             }
 
         return {
-            "result_type": self._pub_key,
+            "result_type": request_handler.request.get("method"),
             "result": execution_result if not execution_result.get("code", None) else None,
             "error": execution_result if execution_result.get("code", None) else None,
         }
