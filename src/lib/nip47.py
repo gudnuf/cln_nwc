@@ -249,7 +249,12 @@ class NIP47Request(Event):
             code = "NOT_IMPLEMENTED"
 
         if not code:
-            execution_result = await request_handler.execute(request_payload.get("params"))
+            try:
+                execution_result = await request_handler.execute(request_payload.get("params"))
+            except:
+                execution_result = {
+                    "code": "OTHER"
+                }
         else:
             execution_result = {
                 "code": code,
