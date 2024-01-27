@@ -60,7 +60,7 @@ def create_nwc_uri(plugin: Plugin, expiry_unix: int = None,
         secret=secret,
         wallet_pubkey=wallet_pubkey,
         expiry_unix=expiry_unix,
-        budget_msat=Millisatoshi(budget_msat or 0)
+        budget_msat=Millisatoshi(budget_msat) if budget_msat else None
     )
 
     nwc = NIP47URI(options=options)
