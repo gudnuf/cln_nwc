@@ -1,5 +1,6 @@
 import json
 import time
+import uuid
 from dataclasses import dataclass
 from urllib.parse import urlparse, parse_qs
 from pyln.client import Plugin, RpcError, Millisatoshi
@@ -159,6 +160,7 @@ class NIP47RequestHandler:
         self._plugin = plugin
         self._method_handlers = {
             "pay_invoice": self._pay_invoice,
+            "make_invoice": self._make_invoice,
         }
 
         self.request = request
@@ -166,10 +168,7 @@ class NIP47RequestHandler:
 
         method = request.get("method")
 
-        if method not in self._method_handlers:
-            raise ValueError(f"Unknown method: {method}")
-
-        self.handler = self._method_handlers[method]
+        self.handler = self._method_handlers.get(method, None)
 
     async def execute(self, params):
         if self.connection.expired():
@@ -209,6 +208,28 @@ class NIP47RequestHandler:
                 "code": "OTHER",
                 "message": e.error
             }
+        
+    async def _make_invoice(self, params):
+        amount_msat = params.get("amount")
+        if not amount_msat:
+            return {
+                "code": "OTHER",
+                "message": "missing amount_msat"
+            }
+        description = params.get("description", None)
+        description_hash = params.get("description_hash", None)
+        expiry = params.get("expiry", None)
+        invoice = self._plugin.rpc.invoice(
+            amount_msat=amount_msat, label=f"nwc-invoice:{uuid.uuid4()}", description=description, expiry=expiry)
+        return {
+            "type": "incoming",
+            "invoice": invoice.get("bolt11"),
+            "amount": amount_msat,
+            "created_at": int(time.time()),
+            "expires_at": invoice.get("expires_at"),
+            "payment_hash": invoice.get("payment_hash")
+        }
+
     def add_to_spent(self, amount_sent_msat):
         key = self.connection.datastore_key
         print(f"SPENT: {self.connection.spent_msat} \n {Millisatoshi(amount_sent_msat)}")
