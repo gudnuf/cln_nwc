@@ -1,0 +1,15 @@
+ipython
+pip
+base58
+bitstring
+pysocks
+cryptography
+coincurve
+websockets
+jupyter
+pylint
+autopep8
+pyln_client
+pyln_proto
+pyln_bolt7
+bech32ref
