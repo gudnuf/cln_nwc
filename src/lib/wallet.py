@@ -1,4 +1,4 @@
-"""Defines classes for interacting with relays"""
+"""Main wallet functionality"""
 
 import asyncio
 import json
@@ -8,7 +8,7 @@ import websockets
 from .nip47 import NIP47Response, NIP47Request
 
 
-class Relay:
+class Wallet:
     """connect to a relay, subscribe to filters, and publish events"""
 
     def __init__(self, plugin: Plugin, uri: str):

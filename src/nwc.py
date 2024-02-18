@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/nix/store/asiphbpiy2gmidfm3xbwcikayhs66289-python3-3.11.7/bin/python
 
 """
 Entry point for this plugin
@@ -10,7 +10,7 @@ try:
     import threading
     import json
     from lib.nip47 import URIOptions, NIP47URI
-    from lib.relay import Relay
+    from lib.wallet import Wallet
 except ImportError as e:
     # TODO: if something isn't installed then disable the plugin
     print("BAD STUFF", f"{e}")
@@ -26,17 +26,17 @@ plugin = Plugin()
 @plugin.init()
 def init(options, configuration, plugin: Plugin):
     """initialize the plugin"""
-    # TODO: create a Main class that implements Keys, Relay, Plugin
+    # TODO: create a Main class that implements Keys, Wallet, Plugin
     plugin.priv_key = bytes.fromhex("000001")  # TODO: set a real privkey
     plugin.pub_key = PublicKey.from_secret(plugin.priv_key).format().hex()[2:]
 
-    # create a relay instance to listent for incoming nip47 requests
+    # create a Wallet instance to listent for incoming nip47 requests
     url = DEFAULT_RELAY
-    relay = Relay(plugin, url)
+    wallet = Wallet(plugin, url)
 
     # start a new thread for the relay
-    relay_thread = threading.Thread(target=relay.listen_for_nip47_requests)
-    relay_thread.start()
+    wallet_thread = threading.Thread(target=wallet.listen_for_nip47_requests)
+    wallet_thread.start()
 
     plugin.log(f"connected to {url}", 'info')
 
