@@ -16,8 +16,6 @@ except ImportError as e:
     # TODO: if something isn't installed then disable the plugin
     print("BAD STUFF", f"{e}")
 
-# TODO: use the same format language for private and public keys, ie.
-# priv_key vs privkey vs private_key, etc...
 
 DEFAULT_RELAY = 'wss://relay.getalby.com/v1'
 
@@ -25,8 +23,8 @@ DEFAULT_RELAY = 'wss://relay.getalby.com/v1'
 def init(options, configuration, plugin: Plugin):
     """initialize the plugin"""
     # TODO: create a Main class that implements Keys, Wallet, Plugin
-    plugin.priv_key = bytes.fromhex("000001")  # TODO: set a real privkey
-    plugin.pub_key = PublicKey.from_secret(plugin.priv_key).format().hex()[2:]
+    plugin.privkey = bytes.fromhex("000001")  # TODO: set a real privkey
+    plugin.pubkey = PublicKey.from_secret(plugin.privkey).format().hex()[2:]
 
     # create a Wallet instance to listent for incoming nip47 requests
     url = DEFAULT_RELAY
@@ -44,7 +42,7 @@ def init(options, configuration, plugin: Plugin):
 def create_nwc_uri(plugin: Plugin, expiry_unix: int = None,
                    budget_msat: int = None):
     """Create a new nostr wallet connection"""
-    wallet_pubkey = plugin.pub_key
+    wallet_pubkey = plugin.pubkey
     relay_url = DEFAULT_RELAY
 
     # 32-byte hex encoded secret to sign/encrypt

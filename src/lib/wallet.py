@@ -29,7 +29,7 @@ class Wallet:
 
         await self.subscribe(filter={
             "kinds": [23194],
-            "#p": [plugin.pub_key]
+            "#p": [plugin.pubkey]
         })
 
         await self.listen()
@@ -81,16 +81,16 @@ class Wallet:
         request = NIP47Request.from_JSON(evt_json=data, relay=self)
 
         response_content = await request.process_request(
-            dh_priv_key_hex=plugin.priv_key.hex()
+            dh_privkey_hex=plugin.privkey.hex()
         )
 
         plugin.log(f"RESPOSNE: {response_content}")
 
         response_event = NIP47Response(
             content=json.dumps(response_content),
-            nip04_pub_key=request._pub_key,
+            nip04_pubkey=request._pubkey,
             referenced_event_id=request._id,
-            priv_key=plugin.priv_key.hex()
+            privkey=plugin.privkey.hex()
         )
 
         response_event.sign()

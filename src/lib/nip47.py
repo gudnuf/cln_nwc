@@ -6,7 +6,7 @@ from urllib.parse import urlparse, parse_qs
 from pyln.client import Plugin, RpcError, Millisatoshi
 from coincurve import PublicKey
 from .event import Event
-from .utils import get_hex_pub_key
+from .utils import get_hex_pubkey
 from . import nip04
 from utilities.rpc_plugin import plugin
 
@@ -41,11 +41,11 @@ class NIP47URI:
         return options
 
     @staticmethod
-    def find_unique(pub_key):
+    def find_unique(pubkey):
         """find the nostr wallet connection in db"""
 
         connection_key = ISSUED_URI_BASE_KEY.copy()
-        connection_key.append(pub_key)
+        connection_key.append(pubkey)
         connection_record = plugin.rpc.listdatastore(
             key=connection_key)["datastore"]  # TODO: error handling
         if connection_record:
@@ -123,31 +123,31 @@ class NIP47URI:
 
 
 class NIP47Response(Event):
-    def __init__(self, content: str, nip04_pub_key,
-                 referenced_event_id: str, priv_key: str):
+    def __init__(self, content: str, nip04_pubkey,
+                 referenced_event_id: str, privkey: str):
         # encrypt response payload
         encrypted_content = nip04.encrypt(
-            secret_key=priv_key,
-            pubkey_hex=nip04_pub_key,
+            secret_key=privkey,
+            pubkey_hex=nip04_pubkey,
             data=content
         )
 
-        event_pub_key = get_hex_pub_key(priv_key=priv_key)
-        p_tag = ['p', nip04_pub_key]
+        event_pubkey = get_hex_pubkey(privkey=privkey)
+        p_tag = ['p', nip04_pubkey]
         e_tag = ['e', referenced_event_id]
         # create kind 23195 (nwc response) event with encrypted payload
         super().__init__(
             content=encrypted_content,
-            pub_key=event_pub_key,
+            pubkey=event_pubkey,
             tags=[
                 p_tag,
                 e_tag],
             kind=23195)
 
-        self._priv_key = priv_key  # QUESTION: bad idea to set the priv key on the class?
+        self._privkey = privkey  # QUESTION: bad idea to set the priv key on the class?
 
     def sign(self):
-        return super().sign(priv_key=self._priv_key)
+        return super().sign(privkey=self._privkey)
 
 
 class NWCError(Exception):
@@ -255,7 +255,7 @@ class NIP47Request(Event):
             kind=event._kind,
             content=event._content,
             tags=event._tags,
-            pub_key=event._pub_key,
+            pubkey=event._pubkey,
             created_at=event._created_at
         )
 
@@ -270,17 +270,17 @@ class NIP47Request(Event):
             kind=evt_json['kind'],
             content=evt_json['content'],
             tags=evt_json['tags'],
-            pub_key=evt_json['pubkey'],
+            pubkey=evt_json['pubkey'],
             created_at=evt_json['created_at']
         )
 
         # Return a new NIP47Request instance
         return NIP47Request(event=event, relay=relay)
 
-    async def process_request(self, dh_priv_key_hex: str):
-        request_payload = json.loads(self.decrypt_content(dh_priv_key_hex))
+    async def process_request(self, dh_privkey_hex: str):
+        request_payload = json.loads(self.decrypt_content(dh_privkey_hex))
 
-        connection = NIP47URI.find_unique(pub_key=self._pub_key)
+        connection = NIP47URI.find_unique(pubkey=self._pubkey)
 
         print(f"CONNECTION {connection}")
 
@@ -313,10 +313,10 @@ class NIP47Request(Event):
             "error": execution_result if execution_result.get("code", None) else None,
         }
 
-    def decrypt_content(self, dh_priv_key_hex: str):
+    def decrypt_content(self, dh_privkey_hex: str):
         """Use nip04 to decrypt the event content"""
         return nip04.decrypt(
-            secret_key=dh_priv_key_hex,
-            pubkey_hex=self._pub_key,
+            secret_key=dh_privkey_hex,
+            pubkey_hex=self._pubkey,
             data=self._content
         )

@@ -123,12 +123,12 @@ class Event:
             kind=evt_json['kind'],
             content=evt_json['content'],
             tags=evt_json['tags'],
-            pub_key=evt_json['pubkey'],
+            pubkey=evt_json['pubkey'],
             created_at=evt_json['created_at']
         )
 
     def __init__(self, id=None, sig=None, kind=None, content=None,
-                 tags=None, pub_key=None, created_at=None):
+                 tags=None, pubkey=None, created_at=None):
         self._id = id
         self._sig = sig
         self._kind = kind
@@ -140,7 +140,7 @@ class Event:
         # content forced to str
         self._content = str(content)
 
-        self._pub_key = pub_key
+        self._pubkey = pubkey
 
         self._tags = EventTags(tags)
 
@@ -148,13 +148,13 @@ class Event:
         """
             see https://github.com/fiatjaf/nostr/blob/master/nips/01.md
         """
-        if self._pub_key is None:
+        if self._pubkey is None:
             raise Exception(
                 'Event::serialize can\'t be done unless pub key is set')
 
         ret = json.dumps([
             0,
-            self._pub_key,
+            self._pubkey,
             self._created_at,
             self._kind,
             self._tags.tags,
@@ -171,18 +171,18 @@ class Event:
         evt_str = self.serialize()
         self._id = hashlib.sha256(evt_str.encode('utf-8')).hexdigest()
 
-    def sign(self, priv_key: str):
+    def sign(self, privkey: str):
         """
             see https://github.com/fiatjaf/nostr/blob/master/nips/01.md
             pub key must be set to generate the id
 
-            if you were doing we an existing event for some reason you'd need to change the pub_key
+            if you were doing we an existing event for some reason you'd need to change the pubkey
             as else the sig we give won't be as expected
 
         """
         self._get_id()
 
-        pk = PrivateKey(bytes.fromhex(priv_key))
+        pk = PrivateKey(bytes.fromhex(privkey))
 
         id_bytes = (bytes(bytearray.fromhex(self._id)))
         sig = pk.sign_schnorr(message=id_bytes, aux_randomness=None)
@@ -193,7 +193,7 @@ class Event:
     def event_data(self):
         return {
             'id': self._id,
-            'pubkey': self._pub_key,
+            'pubkey': self._pubkey,
             'created_at': self._created_at,
             'kind': self._kind,
             'tags': self._tags.tags,
