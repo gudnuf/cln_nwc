@@ -11,6 +11,7 @@ try:
     import json
     from lib.nip47 import URIOptions, NIP47URI
     from lib.wallet import Wallet
+    from utilities.rpc_plugin import plugin
 except ImportError as e:
     # TODO: if something isn't installed then disable the plugin
     print("BAD STUFF", f"{e}")
@@ -19,9 +20,6 @@ except ImportError as e:
 # priv_key vs privkey vs private_key, etc...
 
 DEFAULT_RELAY = 'wss://relay.getalby.com/v1'
-
-plugin = Plugin()
-
 
 @plugin.init()
 def init(options, configuration, plugin: Plugin):
@@ -32,7 +30,7 @@ def init(options, configuration, plugin: Plugin):
 
     # create a Wallet instance to listent for incoming nip47 requests
     url = DEFAULT_RELAY
-    wallet = Wallet(plugin, url)
+    wallet = Wallet(url)
 
     # start a new thread for the relay
     wallet_thread = threading.Thread(target=wallet.listen_for_nip47_requests)

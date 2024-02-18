@@ -8,6 +8,7 @@ from coincurve import PublicKey
 from .event import Event
 from .utils import get_hex_pub_key
 from . import nip04
+from utilities.rpc_plugin import plugin
 
 
 @dataclass
@@ -40,7 +41,7 @@ class NIP47URI:
         return options
 
     @staticmethod
-    def find_unique(plugin, pub_key):
+    def find_unique(pub_key):
         """find the nostr wallet connection in db"""
 
         connection_key = ISSUED_URI_BASE_KEY.copy()
@@ -156,8 +157,7 @@ class NWCError(Exception):
 
 
 class NIP47RequestHandler:
-    def __init__(self, request: str, connection: NIP47URI,  plugin: Plugin):
-        self._plugin = plugin
+    def __init__(self, request: str, connection: NIP47URI):
         self._method_handlers = {
             "pay_invoice": self._pay_invoice,
             "make_invoice": self._make_invoice,
@@ -182,7 +182,7 @@ class NIP47RequestHandler:
         invoice = params.get("invoice")
         if not invoice:
             raise LookupError("No invoice found when trying to pay :(")
-        invoice_msat = self._plugin.rpc.decodepay(
+        invoice_msat = plugin.rpc.decodepay(
             bolt11=invoice).get("amount_msat", 0)
 
         if self.connection.budget_msat and self.connection.remaining_budget < invoice_msat:
@@ -191,7 +191,7 @@ class NIP47RequestHandler:
             }
 
         try:
-            pay_result = self._plugin.rpc.pay(bolt11=invoice)
+            pay_result = plugin.rpc.pay(bolt11=invoice)
             preimage = pay_result.get("payment_preimage", None)
             if not preimage:
                 return {
@@ -219,7 +219,7 @@ class NIP47RequestHandler:
         description = params.get("description", None)
         description_hash = params.get("description_hash", None)
         expiry = params.get("expiry", None)
-        invoice = self._plugin.rpc.invoice(
+        invoice = plugin.rpc.invoice(
             amount_msat=amount_msat, label=f"nwc-invoice:{uuid.uuid4()}", description=description, expiry=expiry)
         return {
             "type": "incoming",
@@ -234,7 +234,7 @@ class NIP47RequestHandler:
         key = self.connection.datastore_key
         print(f"SPENT: {self.connection.spent_msat} \n {Millisatoshi(amount_sent_msat)}")
         new_amount = self.connection.spent_msat + Millisatoshi(amount_sent_msat)
-        self._plugin.rpc.datastore(key=key, string=json.dumps({
+        plugin.rpc.datastore(key=key, string=json.dumps({
             "secret": self.connection.secret,
             "budget_msat": self.connection.budget_msat,
             "expiry_unix": self.connection.expiry_unix,
@@ -277,10 +277,10 @@ class NIP47Request(Event):
         # Return a new NIP47Request instance
         return NIP47Request(event=event, relay=relay)
 
-    async def process_request(self, plugin: Plugin, dh_priv_key_hex: str):
+    async def process_request(self, dh_priv_key_hex: str):
         request_payload = json.loads(self.decrypt_content(dh_priv_key_hex))
 
-        connection = NIP47URI.find_unique(plugin=plugin, pub_key=self._pub_key)
+        connection = NIP47URI.find_unique(pub_key=self._pub_key)
 
         print(f"CONNECTION {connection}")
 
@@ -289,7 +289,7 @@ class NIP47Request(Event):
             code = "UNAUTHORIZED"
 
         request_handler = NIP47RequestHandler(
-            connection=connection, request=request_payload, plugin=plugin)
+            connection=connection, request=request_payload)
 
         if not request_handler.handler:
             code = "NOT_IMPLEMENTED"
