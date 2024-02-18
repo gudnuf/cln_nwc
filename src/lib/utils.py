@@ -2,6 +2,7 @@
 
 from coincurve import PublicKey
 
+
 def get_hex_pubkey(privkey: str):
     """
     Compute the x-only public key from a private key

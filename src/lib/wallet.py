@@ -78,7 +78,7 @@ class Wallet:
 
     async def on_event(self, data: str):
         """handle incoming NIP47 request events"""
-        request = NIP47Request.from_JSON(evt_json=data, relay=self)
+        request = NIP47Request.from_JSON(evt_json=data)
 
         response_content = await request.process_request(
             dh_privkey_hex=plugin.privkey.hex()

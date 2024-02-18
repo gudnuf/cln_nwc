@@ -19,6 +19,7 @@ except ImportError as e:
 
 DEFAULT_RELAY = 'wss://relay.getalby.com/v1'
 
+
 @plugin.init()
 def init(options, configuration, plugin: Plugin):
     """initialize the plugin"""

@@ -3,7 +3,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from urllib.parse import urlparse, parse_qs
-from pyln.client import Plugin, RpcError, Millisatoshi
+from pyln.client import RpcError, Millisatoshi
 from coincurve import PublicKey
 from .event import Event
 from .utils import get_hex_pubkey
@@ -50,7 +50,7 @@ class NIP47URI:
             key=connection_key)["datastore"]  # TODO: error handling
         if connection_record:
             connection_data = json.loads(connection_record[0].get("string"))
-            
+
             budget_msat = connection_data.get("budget_msat", None)
             spent_msat = connection_data.get("spent_msat")
             expiry_unix = connection_data.get("expiry_unix", None)
@@ -119,7 +119,6 @@ class NIP47URI:
         if now > self.expiry_unix:
             return True
         return False
-    
 
 
 class NIP47Response(Event):
@@ -157,6 +156,10 @@ class NWCError(Exception):
 
 
 class NIP47RequestHandler:
+    @property
+    def result_type(self):
+        return self.request.get("method")
+
     def __init__(self, request: str, connection: NIP47URI):
         self._method_handlers = {
             "pay_invoice": self._pay_invoice,
@@ -208,7 +211,7 @@ class NIP47RequestHandler:
                 "code": "OTHER",
                 "message": e.error
             }
-        
+
     async def _make_invoice(self, params):
         amount_msat = params.get("amount")
         if not amount_msat:
@@ -232,8 +235,10 @@ class NIP47RequestHandler:
 
     def add_to_spent(self, amount_sent_msat):
         key = self.connection.datastore_key
-        print(f"SPENT: {self.connection.spent_msat} \n {Millisatoshi(amount_sent_msat)}")
-        new_amount = self.connection.spent_msat + Millisatoshi(amount_sent_msat)
+        print(
+            f"SPENT: {self.connection.spent_msat} \n {Millisatoshi(amount_sent_msat)}")
+        new_amount = self.connection.spent_msat + \
+            Millisatoshi(amount_sent_msat)
         plugin.rpc.datastore(key=key, string=json.dumps({
             "secret": self.connection.secret,
             "budget_msat": self.connection.budget_msat,
@@ -245,7 +250,7 @@ class NIP47RequestHandler:
 class NIP47Request(Event):
     """Implements all the NIP47 stuff we need"""
 
-    def __init__(self, event: Event, relay):
+    def __init__(self, event: Event):
         if event._kind != 23194:
             raise ValueError("NIP47 Requests must be kind 23194")
 
@@ -259,10 +264,8 @@ class NIP47Request(Event):
             created_at=event._created_at
         )
 
-        self.relay = relay
-
     @staticmethod
-    def from_JSON(evt_json, relay):
+    def from_JSON(evt_json):
         # Create an Event instance from JSON
         event = Event(
             id=evt_json['id'],
@@ -275,7 +278,7 @@ class NIP47Request(Event):
         )
 
         # Return a new NIP47Request instance
-        return NIP47Request(event=event, relay=relay)
+        return NIP47Request(event=event)
 
     async def process_request(self, dh_privkey_hex: str):
         request_payload = json.loads(self.decrypt_content(dh_privkey_hex))
@@ -308,7 +311,7 @@ class NIP47Request(Event):
             }
 
         return {
-            "result_type": request_handler.request.get("method"),
+            "result_type": request_handler.result_type,
             "result": execution_result if not execution_result.get("code", None) else None,
             "error": execution_result if execution_result.get("code", None) else None,
         }
