@@ -1,6 +1,7 @@
 import json
 import time
 import uuid
+from enum import Enum
 from dataclasses import dataclass
 from urllib.parse import urlparse, parse_qs
 from pyln.client import RpcError, Millisatoshi
@@ -149,13 +150,96 @@ class NIP47Response(Event):
         return super().sign(privkey=self._privkey)
 
 
+class ErrorCodes(Enum):
+    RATE_LIMITED = "RATE_LIMITED"
+    NOT_IMPLEMENTED = "NOT_IMPLEMENTED"
+    INSUFFICIENT_BALANCE = "INSUFFICIENT_BALANCE"
+    RESTRICTED = "RESTRICTED"
+    UNAUTHORIZED = "UNAUTHORIZED"
+    QUOTA_EXCEEDED = "QUOTA_EXCEEDED"
+    INTERNAL = "INTERNAL"
+    OTHER = "OTHER"
+
+
 class NWCError(Exception):
-    def __init__(self, code):
+    """
+    Base class for NWC errors.
+
+    code: NWC error codes
+    message: human readable error message
+    """
+
+    def __init__(self, code, message=None):
         super().__init__()
         self.code = code
+        self.message = message
+
+
+class ParameterValidationError(NWCError):
+    def __init__(self, missing_param):
+        code = ErrorCodes.OTHER
+        message = f"missing parameter: {missing_param}"
+        super().__init__(code, message)
+
+
+class QuotaExceededError(NWCError):
+    def __init__(self):
+        code = ErrorCodes.QUOTA_EXCEEDED
+        super().__init__(code)
+
+
+class UnauthorizedError(NWCError):
+    def __init__(self, message=None):
+        code = ErrorCodes.UNAUTHORIZED
+        super().__init__(code, message)
+
+
+class NotImplementedError(NWCError):
+    def __init__(self, message=None):
+        code = ErrorCodes.UNAUTHORIZED
+        super().__init__(code, message)
 
 
 class NIP47RequestHandler:
+    method_params_schema = {
+        "pay_invoice": {
+            "required": ["invoice"],
+            "optional": ["amount"]
+        },
+        "multi_pay_invoice": {
+            "required": ["invoices"],
+            "optional": []
+        },
+        "pay_keysend": {
+            "required": ["amount", "pubkey"],
+            "optional": ["preimage", "tlv_records"]
+        },
+        "multi_pay_keysend": {
+            "required": ["keysends"],
+            "optional": []
+        },
+        "make_invoice": {
+            "required": ["amount", "description"],
+            "optional": ["expiry", "description_hash"]
+        },
+        "lookup_invoice": {
+            "required": [],
+            "optional": ["payment_hash", "invoice"]
+        },
+        "list_transactions": {
+            "required": [],
+            "optional": ["limit", "offset", "from", "until", "unpaid", "type"]
+        },
+        "get_balance": {
+            "required": [],
+            "optional": []
+        },
+        "get_info": {
+            "required": [],
+            "optional": []
+        }
+    }
+
     @property
     def result_type(self):
         return self.request.get("method")
@@ -169,56 +253,52 @@ class NIP47RequestHandler:
         self.request = request
         self.connection = connection
 
-        method = request.get("method")
+        self.method = request.get("method")
 
-        self.handler = self._method_handlers.get(method, None)
+        self.handler = self._method_handlers.get(self.method, None)
+
+    def validate_params(self, params):
+        if not params:
+            raise ParameterValidationError("no params provided")
+
+        required_params = self.method_params_schema[self.method]["required"]
+        optional_params = self.method_params_schema[self.method]["optional"]
+
+        for param in required_params:
+            if not params.get(param):
+                raise ParameterValidationError(param)
+
+        return {key: params.get(key, None) for key in required_params + optional_params}
 
     async def execute(self, params):
         if self.connection.expired():
-            return {
-                "code": "UNAUTHORIZED",
-                "message": "expired"
-            }
-        return await self.handler(params)
+            raise UnauthorizedError("connection expired")
+
+        validated_params = self.validate_params(params)
+        return await self.handler(validated_params)
 
     async def _pay_invoice(self, params):
         invoice = params.get("invoice")
-        if not invoice:
-            raise LookupError("No invoice found when trying to pay :(")
         invoice_msat = plugin.rpc.decodepay(
             bolt11=invoice).get("amount_msat", 0)
 
         if self.connection.budget_msat and self.connection.remaining_budget < invoice_msat:
-            return {
-                "code": "QUOTA_EXCEEDED"
-            }
+            raise QuotaExceededError()
 
-        try:
-            pay_result = plugin.rpc.pay(bolt11=invoice)
-            preimage = pay_result.get("payment_preimage", None)
-            if not preimage:
-                return {
-                    "code": "OTHER"
-                }
-            amount_sent_msat = pay_result.get("amount_sent_msat")
-            self.add_to_spent(amount_sent_msat)
-            return {
-                "preimage": preimage
-            }
-        except RpcError as e:
-            # TODO: include INSUFFICIENT_BALANCE
-            return {
-                "code": "OTHER",
-                "message": e.error
-            }
+        pay_result = plugin.rpc.pay(bolt11=invoice)
+        preimage = pay_result.get("payment_preimage", None)
+        if not preimage:
+            raise NWCError(ErrorCodes.INTERNAL)
+
+        amount_sent_msat = pay_result.get("amount_sent_msat")
+        self.add_to_spent(amount_sent_msat)
+
+        return {
+            "preimage": preimage
+        }
 
     async def _make_invoice(self, params):
         amount_msat = params.get("amount")
-        if not amount_msat:
-            return {
-                "code": "OTHER",
-                "message": "missing amount_msat"
-            }
         description = params.get("description", None)
         description_hash = params.get("description_hash", None)
         expiry = params.get("expiry", None)
@@ -281,39 +361,58 @@ class NIP47Request(Event):
         return NIP47Request(event=event)
 
     async def process_request(self, dh_privkey_hex: str):
-        request_payload = json.loads(self.decrypt_content(dh_privkey_hex))
+        try:
+            request_payload = json.loads(self.decrypt_content(dh_privkey_hex))
+            method = request_payload.get("method", None)
 
-        connection = NIP47URI.find_unique(pubkey=self._pubkey)
+            connection = NIP47URI.find_unique(pubkey=self._pubkey)
 
-        print(f"CONNECTION {connection}")
+            print(f"CONNECTION {connection}")
 
-        code = None
-        if not connection:
-            code = "UNAUTHORIZED"
+            if not connection:
+                raise UnauthorizedError()
 
-        request_handler = NIP47RequestHandler(
-            connection=connection, request=request_payload)
+            request_handler = NIP47RequestHandler(
+                connection=connection, request=request_payload)
 
-        if not request_handler.handler:
-            code = "NOT_IMPLEMENTED"
+            if not request_handler.handler:
+                raise NotImplementedError()
 
-        if not code:
-            try:
-                execution_result = await request_handler.execute(request_payload.get("params"))
-            except:
-                execution_result = {
-                    "code": "OTHER"
-                }
-        else:
-            execution_result = {
-                "code": code,
-                "message": None
-            }
+            execution_result = await request_handler.execute(request_payload.get("params"))
 
+            return self.success_response(result_type=method, result=execution_result)
+
+        except NWCError as e:
+            return self.error_response(result_type=method, code=e.code, message=e.message)
+
+        except RpcError as e:
+            message = e.error.get("message", None)
+            return self.error_response(
+                result_type=method, code=ErrorCodes.INTERNAL, message=message)
+
+        except json.JSONDecodeError as e:
+            return self.error_response(result_type=method, code=ErrorCodes.OTHER, message=str(e.msg))
+
+        except Exception as e:
+            return self.error_response(result_type=method, code=ErrorCodes.INTERNAL)
+
+    def success_response(self, result_type, result):
+        """Formats a successful response."""
         return {
-            "result_type": request_handler.result_type,
-            "result": execution_result if not execution_result.get("code", None) else None,
-            "error": execution_result if execution_result.get("code", None) else None,
+            "result_type": result_type,
+            "result": result,
+            "error": None
+        }
+
+    def error_response(self, result_type, code: ErrorCodes, message=""):
+        """Formats an error response."""
+        return {
+            "result_type": result_type,
+            "result": None,
+            "error": {
+                "code": code.value,
+                "message": message
+            }
         }
 
     def decrypt_content(self, dh_privkey_hex: str):
