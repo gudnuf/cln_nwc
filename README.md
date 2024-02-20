@@ -1,6 +1,8 @@
 # Nostr Wallet Connect plugin for CLN
 
-⚠️⚠️ Not production ready! ⚠️⚠️
+Allows you to create permissioned connections between your node and apps. Payment requests are sent over relays to your node.
+
+⚠️⚠️ Not production ready! Use at your own risk ⚠️⚠️
 
 ## Starting the Plugin
 
@@ -20,7 +22,11 @@ Find your c-lightning config file and add
 
 ## Using the plugin
 
-`nwc-create [budget_msat] [expiry_unix]` will get you an NWC URI.
+`nwc-create [budget_msat] [expiry_unix]` will get you an NWC URI. This needs to be pasted into the app you are connecting with.
+
+Apps can now send supported NIP 47 requests to your node. If the request is valid (not expired, budget not exceeded, etc.), your node will perform the requested action and return an NIP 47 response.
+
+Keep budgets low and create new connections for each app. For now, you will have to use the `deldatastore` command to delete connections... `nwc-revoke pubkey` TBD
 
 ## Running the dev environment
 
@@ -61,3 +67,32 @@ The [`restart_plugin.sh`](./restart_plugin.sh) script takes an _optional argumen
 ```
 
 **NOTE**: any changes to your plugin will require you to re-run this script.
+
+## NIP-47 Supported Methods
+
+❌ NIP-47 info event
+
+❌ `expiration` tag in requests
+
+✅ `get_info`
+- ⚠️ block_hash not supported
+
+✅ `pay_invoice`
+
+✅ `pay_keysend`
+- ⚠️ preimage in request not supported
+- ⚠️ tlv_records in request not supported
+
+✅ `make_invoice`
+- ⚠️ description hash not supported
+- ⚠️ not all tx data is returned. Missing: description, description_has, preimage, fees_paid, metadata
+
+❌ `get_balance` - not planning to implement
+
+❌ `lookup_invoice`
+
+❌ `list_transactions`
+
+❌ `multi_pay_invoice`
+
+❌ `multi_pay_keysend`
