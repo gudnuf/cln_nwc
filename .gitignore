@@ -4,3 +4,4 @@
 .envrc
 __pycache__
 result
+tests/node_modules
