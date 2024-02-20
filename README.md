@@ -2,7 +2,7 @@
 
 Allows you to create permissioned connections between your node and apps. Payment requests are sent over relays to your node.
 
-⚠️⚠️ Not production ready! Use at your own risk ⚠️⚠️
+⚠️⚠️ Not production ready! Use at your own risk. Private Key is hardcoded xD ⚠️⚠️
 
 ## Starting the Plugin
 
@@ -18,7 +18,7 @@ Find your c-lightning config file and add
 
 ### Run on startup
 
-`lightningd --experimental-offers --plugin=/path/to/nwc.py`
+`lightningd --plugin=/path/to/nwc.py`
 
 ## Using the plugin
 
@@ -67,6 +67,16 @@ The [`restart_plugin.sh`](./restart_plugin.sh) script takes an _optional argumen
 ```
 
 **NOTE**: any changes to your plugin will require you to re-run this script.
+
+## Running the Tests
+
+The tests are not automated right now.
+
+What you will need to do is make sure you have two nodes running in regtest per the above instructions. When you run start_ln, you will get aliases for `l1-cli` and `l2-cli`. The value of these aliases needs to be pasted into the test files where `l2` and `baseCliCommand` are specified. 
+
+Once you have specified the path to your node's cli, and you have 2 nodes running in your nix environment, the tests should run with `npx jest`.
+
+WIP! Would be nice to add some CI, environment variables, etc.
 
 ## NIP-47 Supported Methods
 
