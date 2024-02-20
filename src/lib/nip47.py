@@ -248,6 +248,8 @@ class NIP47RequestHandler:
         self._method_handlers = {
             "pay_invoice": self._pay_invoice,
             "make_invoice": self._make_invoice,
+            "pay_keysend": self._pay_keysend,
+            "get_info": self._get_info
         }
 
         self.request = request
@@ -274,15 +276,19 @@ class NIP47RequestHandler:
         validated_params = self.validate_params(params)
         return await self.handler(validated_params)
 
-    async def _pay_invoice(self, params):
-        invoice = params.get("invoice")
-        invoice_msat = plugin.rpc.decodepay(
-            bolt11=invoice).get("amount_msat", 0)
+    async def _get_info(self, params):
+        node_info = plugin.rpc.getinfo()
+        return {
+            "alias": node_info.get("alias"),
+            "color": node_info.get("color"),
+            "pubkey": node_info.get("id"),
+            "network": node_info.get("network"),
+            "block_height": node_info.get("blockheight"),
+            "block_hash": None,
+            "methods": list(self._method_handlers.keys())
+        }
 
-        if self.connection.budget_msat and self.connection.remaining_budget < invoice_msat:
-            raise QuotaExceededError()
-
-        pay_result = plugin.rpc.pay(bolt11=invoice)
+    def handle_pay_result(self, pay_result):
         preimage = pay_result.get("payment_preimage", None)
         if not preimage:
             raise NWCError(ErrorCodes.INTERNAL)
@@ -293,6 +299,37 @@ class NIP47RequestHandler:
         return {
             "preimage": preimage
         }
+
+    async def _pay_invoice(self, params):
+        invoice = params.get("invoice")
+        invoice_msat = plugin.rpc.decodepay(
+            bolt11=invoice).get("amount_msat", 0)
+
+        if self.connection.budget_msat and self.connection.remaining_budget < invoice_msat:
+            raise QuotaExceededError()
+
+        pay_result = plugin.rpc.pay(bolt11=invoice)
+
+        return self.handle_pay_result(pay_result)
+
+    async def _pay_keysend(self, params):
+        amount_msat = params.get("amount")
+        pubkey = params.get("pubkey")
+        tlv_records = params.get("tlv_records")
+        preimage = params.get("preimage")
+
+        if preimage:
+            # pretty sure cln doesn't support specifying preimage
+            raise NWCError(ErrorCodes.NOT_IMPLEMENTED,
+                           "preimage not supported")
+        if tlv_records:
+            raise NWCError(ErrorCodes.NOT_IMPLEMENTED,
+                           "tlv records not supported")
+
+        pay_result = plugin.rpc.keysend(destination=pubkey,
+                                        amount_msat=amount_msat)
+
+        return self.handle_pay_result(pay_result)
 
     async def _make_invoice(self, params):
         amount_msat = params.get("amount")
