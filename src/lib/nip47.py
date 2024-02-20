@@ -196,7 +196,7 @@ class UnauthorizedError(NWCError):
 
 class NotImplementedError(NWCError):
     def __init__(self, message=None):
-        code = ErrorCodes.UNAUTHORIZED
+        code = ErrorCodes.NOT_IMPLEMENTED
         super().__init__(code, message)
 
 
@@ -219,8 +219,8 @@ class NIP47RequestHandler:
             "optional": []
         },
         "make_invoice": {
-            "required": ["amount", "description"],
-            "optional": ["expiry", "description_hash"]
+            "required": ["amount"],
+            "optional": ["description", "expiry", "description_hash"]
         },
         "lookup_invoice": {
             "required": [],
@@ -258,9 +258,6 @@ class NIP47RequestHandler:
         self.handler = self._method_handlers.get(self.method, None)
 
     def validate_params(self, params):
-        if not params:
-            raise ParameterValidationError("no params provided")
-
         required_params = self.method_params_schema[self.method]["required"]
         optional_params = self.method_params_schema[self.method]["optional"]
 
@@ -299,8 +296,8 @@ class NIP47RequestHandler:
 
     async def _make_invoice(self, params):
         amount_msat = params.get("amount")
-        description = params.get("description", None)
-        description_hash = params.get("description_hash", None)
+        description = params.get("description") or "CLN NWC Plugin"
+        # description_hash = params.get("description_hash", None)
         expiry = params.get("expiry", None)
         invoice = plugin.rpc.invoice(
             amount_msat=amount_msat, label=f"nwc-invoice:{uuid.uuid4()}", description=description, expiry=expiry)
