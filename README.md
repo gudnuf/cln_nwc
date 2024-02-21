@@ -2,7 +2,7 @@
 
 Allows you to create permissioned connections between your node and apps. Payment requests are sent over relays to your node.
 
-⚠️⚠️ Not production ready! Use at your own risk. Private Key is hardcoded xD ⚠️⚠️
+⚠️⚠️ Not production ready! Use at your own risk. ⚠️⚠️
 
 ## Starting the Plugin
 
@@ -80,7 +80,7 @@ WIP! Would be nice to add some CI, environment variables, etc.
 
 ## NIP-47 Supported Methods
 
-❌ NIP-47 info event
+✅ NIP-47 info event
 
 ❌ `expiration` tag in requests
 
