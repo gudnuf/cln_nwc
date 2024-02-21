@@ -11,6 +11,7 @@ try:
     import json
     from lib.nip47 import URIOptions, NIP47URI
     from lib.wallet import Wallet
+    from lib.utils import get_keypair
     from utilities.rpc_plugin import plugin
 except ImportError as e:
     # TODO: if something isn't installed then disable the plugin
@@ -24,8 +25,10 @@ DEFAULT_RELAY = 'wss://relay.getalby.com/v1'
 def init(options, configuration, plugin: Plugin):
     """initialize the plugin"""
     # TODO: create a Main class that implements Keys, Wallet, Plugin
-    plugin.privkey = bytes.fromhex("000001")  # TODO: set a real privkey
-    plugin.pubkey = PublicKey.from_secret(plugin.privkey).format().hex()[2:]
+
+    privkey, pubkey = get_keypair(plugin)
+    plugin.privkey = privkey
+    plugin.pubkey = pubkey.hex()
 
     # create a Wallet instance to listent for incoming nip47 requests
     url = DEFAULT_RELAY
