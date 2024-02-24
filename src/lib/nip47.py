@@ -252,6 +252,8 @@ class NIP47RequestHandler:
             "get_info": self._get_info
         }
 
+        plugin.log(f"REQUEST: {request}", 'debug')
+
         self.request = request
         self.connection = connection
 
@@ -302,13 +304,23 @@ class NIP47RequestHandler:
 
     async def _pay_invoice(self, params):
         invoice = params.get("invoice")
+        amount = params.get("amount", None)
+
         invoice_msat = plugin.rpc.decodepay(
             bolt11=invoice).get("amount_msat", 0)
 
+        if amount and invoice_msat:
+            raise NWCError(ErrorCodes.OTHER,
+                           "amount and invoice amount cannot both be specified")
+
         if self.connection.budget_msat and self.connection.remaining_budget < invoice_msat:
+            plugin.log(
+                f"nwc quota exceded for {self.connection.pubkey}", 'debug')
             raise QuotaExceededError()
 
-        pay_result = plugin.rpc.pay(bolt11=invoice)
+        pay_result = plugin.rpc.pay(bolt11=invoice, amount_msat=amount)
+
+        plugin.log(f"nwc pay result: {pay_result}", 'debug')
 
         return self.handle_pay_result(pay_result)
 
@@ -399,9 +411,9 @@ class NIP47Request(Event):
             request_payload = json.loads(self.decrypt_content(dh_privkey_hex))
             method = request_payload.get("method", None)
 
-            connection = NIP47URI.find_unique(pubkey=self._pubkey)
+            plugin.log(f"nwc request received: {request_payload}", 'debug')
 
-            print(f"CONNECTION {connection}")
+            connection = NIP47URI.find_unique(pubkey=self._pubkey)
 
             if not connection:
                 raise UnauthorizedError()
@@ -414,12 +426,16 @@ class NIP47Request(Event):
 
             execution_result = await request_handler.execute(request_payload.get("params"))
 
+            plugin.log(f"nwc request executed: {execution_result}", 'debug')
+
             return self.success_response(result_type=method, result=execution_result)
 
         except NWCError as e:
+            plugin.log(f"NWC ERROR: {e}", 'error')
             return self.error_response(result_type=method, code=e.code, message=e.message)
 
         except RpcError as e:
+            plugin.log(f"RPC ERROR: {e}", 'error')
             message = e.error.get("message", None)
             return self.error_response(
                 result_type=method, code=ErrorCodes.INTERNAL, message=message)
@@ -428,10 +444,13 @@ class NIP47Request(Event):
             return self.error_response(result_type=method, code=ErrorCodes.OTHER, message=str(e.msg))
 
         except Exception as e:
+            plugin.log(f"ERROR: {e}", 'error')
             return self.error_response(result_type=method, code=ErrorCodes.INTERNAL)
 
     def success_response(self, result_type, result):
         """Formats a successful response."""
+        plugin.log(
+            f"sending nwc success response: {result_type} {result}", 'debug')
         return {
             "result_type": result_type,
             "result": result,
@@ -440,6 +459,8 @@ class NIP47Request(Event):
 
     def error_response(self, result_type, code: ErrorCodes, message=""):
         """Formats an error response."""
+        plugin.log(
+            f"sending nwc error response: {result_type} {code} {message}", 'debug')
         return {
             "result_type": result_type,
             "result": None,
@@ -456,3 +477,13 @@ class NIP47Request(Event):
             pubkey_hex=self._pubkey,
             data=self._content
         )
+
+
+class InfoEvent(Event):
+    def __init__(self, supported_methods: list[str]):
+        # create kind 23195 (nwc response) event with encrypted payload
+        content = ' '.join(supported_methods)
+
+        super().__init__(
+            content=content,
+            kind=13194)
