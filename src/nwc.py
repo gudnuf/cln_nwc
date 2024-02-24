@@ -88,7 +88,10 @@ def list_nwc_uris(plugin: Plugin):
         remaining_budget_msat = None
 
         if nwc.budget_msat:
-            remaining_budget_msat = nwc.budget_msat - nwc.spent_msat
+            try:
+                remaining_budget_msat = nwc.budget_msat - nwc.spent_msat
+            except:
+                remaining_budget_msat = Millisatoshi(0)
 
         data = {
             "url": nwc.url,
