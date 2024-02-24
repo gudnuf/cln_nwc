@@ -4,7 +4,7 @@ import asyncio
 import json
 import uuid
 import websockets
-from .nip47 import NIP47Response, NIP47Request
+from .nip47 import NIP47Response, NIP47Request, InfoEvent
 from utilities.rpc_plugin import plugin
 
 
@@ -26,6 +26,8 @@ class Wallet:
         """connect, subscribe, and listen for incoming events"""
         self._listen = True
         await self.connect()  # TODO: error handling
+
+        await self.send_info_event()
 
         await self.subscribe(filter={
             "kinds": [23194],
@@ -65,6 +67,18 @@ class Wallet:
         self.subscriptions[sub_id] = filter
 
         return sub_id
+
+    async def send_info_event(self):
+        plugin.log("SENDING INFO EVENT")
+        supported_methods = ["pay_invoice",
+                             "make_invoice", "get_info", "pay_keysend"]
+        nip47_info_event = InfoEvent(supported_methods)
+
+        nip47_info_event.sign(privkey=plugin.privkey.hex())
+
+        plugin.log(f"INFO EVENT: {nip47_info_event.event_data()}")
+
+        await self.send_event(nip47_info_event.event_data())
 
     async def send_event(self, event_data):
         """send an event to the relay"""

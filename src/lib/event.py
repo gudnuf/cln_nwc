@@ -6,6 +6,7 @@ import hashlib
 import time
 import json
 from coincurve import PrivateKey
+from .utils import get_hex_pubkey
 
 # copied EventTags exactly from
 # https://github.com/monty888/monstr/blob/cb728f1710dc47c8289ab0994f15c24e844cebc4/src/monstr/event/event.py
@@ -173,13 +174,11 @@ class Event:
 
     def sign(self, privkey: str):
         """
-            see https://github.com/fiatjaf/nostr/blob/master/nips/01.md
-            pub key must be set to generate the id
-
-            if you were doing we an existing event for some reason you'd need to change the pubkey
-            as else the sig we give won't be as expected
-
+        Sign the event and set event's public key if not already set.
         """
+        if self._pubkey is None:
+            self._pubkey = get_hex_pubkey(privkey)
+
         self._get_id()
 
         pk = PrivateKey(bytes.fromhex(privkey))
