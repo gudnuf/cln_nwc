@@ -77,4 +77,30 @@ def create_nwc_uri(plugin: Plugin, expiry_unix: int = None,
     }
 
 
+@plugin.method("nwc-list")
+def list_nwc_uris(plugin: Plugin):
+    """List all nostr wallet connections"""
+
+    all_connections = NIP47URI.find_all()
+
+    rtn = []
+    for nwc in all_connections:
+        remaining_budget_msat = None
+
+        if nwc.budget_msat:
+            remaining_budget_msat = nwc.budget_msat - nwc.spent_msat
+
+        data = {
+            "url": nwc.url,
+            "pubkey": nwc.pubkey,
+            "expiry_unix": nwc.expiry_unix,
+            "remaining_budget_msat": remaining_budget_msat
+        }
+        rtn.append(data)
+
+    return {
+        "connections": rtn
+    }
+
+
 plugin.run()

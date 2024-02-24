@@ -68,6 +68,35 @@ class NIP47URI:
         return None
 
     @staticmethod
+    def find_all():
+        """find all nostr wallet connections in db"""
+        key = ISSUED_URI_BASE_KEY.copy()
+        records = plugin.rpc.listdatastore(key=key)["datastore"]
+
+        if not records:
+            return []
+
+        connections: list[NIP47URI] = []
+
+        for record in records:
+            connection_data = json.loads(record.get("string"))
+            budget_msat = connection_data.get("budget_msat", None)
+            spent_msat = connection_data.get("spent_msat")
+            expiry_unix = connection_data.get("expiry_unix", None)
+
+            connection = NIP47URI(options=URIOptions(
+                secret=connection_data.get("secret"),
+                budget_msat=Millisatoshi(budget_msat) if budget_msat else None,
+                spent_msat=Millisatoshi(spent_msat),
+                expiry_unix=expiry_unix,
+                relay_url="wss://relay.getalby.com/v1",
+                wallet_pubkey="placeholder"
+            ))
+            connections.append(connection)
+
+        return connections
+
+    @staticmethod
     def construct_wallet_connect_url(options: URIOptions):
         """builds and returns the nwc uri"""
         if options.nostr_wallet_connect_url:
