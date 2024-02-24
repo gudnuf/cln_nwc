@@ -150,6 +150,13 @@ class NIP47URI:
             return True
         return False
 
+    def delete(self):
+        try:
+            plugin.rpc.deldatastore(key=self.datastore_key)
+        except RpcError as e:
+            plugin.log(f"ERROR: {e}", 'error')
+            raise e
+
 
 class NIP47Response(Event):
     def __init__(self, content: str, nip04_pubkey,

@@ -103,4 +103,18 @@ def list_nwc_uris(plugin: Plugin):
     }
 
 
+@plugin.method("nwc-revoke")
+def revoke_nwc_uri(plugin: Plugin, pubkey: str):
+    """Revoke a nostr wallet connection"""
+    nwc = NIP47URI.find_unique(pubkey=pubkey)
+
+    if not nwc:
+        return {
+            "error": f"No wallet connection found for pubkey {pubkey}"
+        }
+
+    nwc.delete()
+    return True
+
+
 plugin.run()
