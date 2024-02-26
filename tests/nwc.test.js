@@ -75,17 +75,13 @@ describe("pay_keysend", () => {
 });
 
 describe("get_balance", () => {
-  it("should not be implemented for privacy reasons", async () => {
-    let error;
-    try {
-      await nwc.getBalance();
-    } catch (e) {
-      error = e;
-    }
-    expect(error).toMatchObject({
-      code: "NOT_IMPLEMENTED",
-      // error: expect.anything(),
-    });
+  it("should return the node's balance", async () => {
+      const balance = await nwc.getBalance();
+
+      expect(balance).toMatchObject({
+        "balance": expect.any(Number),
+        "currency": "sats"
+      })
   });
 });
 
