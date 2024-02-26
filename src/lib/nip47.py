@@ -195,6 +195,7 @@ class ErrorCodes(Enum):
     QUOTA_EXCEEDED = "QUOTA_EXCEEDED"
     INTERNAL = "INTERNAL"
     OTHER = "OTHER"
+    NOT_FOUND = "NOT_FOUND"
 
 
 class NWCError(Exception):
@@ -285,7 +286,8 @@ class NIP47RequestHandler:
             "pay_invoice": self._pay_invoice,
             "make_invoice": self._make_invoice,
             "pay_keysend": self._pay_keysend,
-            "get_info": self._get_info
+            "get_info": self._get_info,
+            "lookup_invoice": self._lookup_invoice,
         }
 
         self.request = request
@@ -392,6 +394,38 @@ class NIP47RequestHandler:
             "expires_at": invoice.get("expires_at"),
             "payment_hash": invoice.get("payment_hash")
         }
+
+    async def _lookup_invoice(self, params):
+        payment_hash = params.get("payment_hash")
+        invoice = params.get("invoice")
+
+        if invoice and payment_hash:
+            raise NWCError(ErrorCodes.OTHER,
+                           "payment_hash and invoice cannot both be specified")
+
+        invoices = []
+        if payment_hash:
+            invoices = plugin.rpc.listinvoices(
+                payment_hash=payment_hash).get("invoices", None)
+        if invoice:
+            invoices = plugin.rpc.listinvoices(invstring=invoice)
+
+        invoice = invoices[0] if invoices else None
+        if not invoice:
+            raise NWCError(ErrorCodes.NOT_FOUND)
+        else:
+            return {
+                "type": "incoming",
+                "invoice": invoice.get("bolt11"),
+                "description": invoice.get("description"),
+                # "description_hash": invoice.get("description_hash"),
+                "preimage": invoice.get("payment_preimage", None),
+                "payment_hash": invoice.get("payment_hash"),
+                "amount": invoice.get("amount_msat"),
+                # "fees_paid":
+                "created_at": int(time.time()),
+                "expires_at": invoice.get("expires_at"),
+            }
 
     def add_to_spent(self, amount_sent_msat):
         key = self.connection.datastore_key
