@@ -288,8 +288,6 @@ class NIP47RequestHandler:
             "get_info": self._get_info
         }
 
-        plugin.log(f"REQUEST: {request}", 'debug')
-
         self.request = request
         self.connection = connection
 
@@ -351,7 +349,7 @@ class NIP47RequestHandler:
 
         if self.connection.budget_msat and self.connection.remaining_budget < invoice_msat:
             plugin.log(
-                f"nwc quota exceded for {self.connection.pubkey}", 'debug')
+                f"nwc quota exceded for {self.connection.pubkey}", 'info')
             raise QuotaExceededError()
 
         pay_result = plugin.rpc.pay(bolt11=invoice, amount_msat=amount)
@@ -462,12 +460,10 @@ class NIP47Request(Event):
 
             execution_result = await request_handler.execute(request_payload.get("params"))
 
-            plugin.log(f"nwc request executed: {execution_result}", 'debug')
-
             return self.success_response(result_type=method, result=execution_result)
 
         except NWCError as e:
-            plugin.log(f"NWC ERROR: {e}", 'error')
+            plugin.log(f"NWC ERROR: {e}", 'debug')
             return self.error_response(result_type=method, code=e.code, message=e.message)
 
         except RpcError as e:
