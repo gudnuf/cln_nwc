@@ -15,6 +15,7 @@ class Wallet:
         self.uri = uri
         self.ws = None
         self.subscriptions = {}
+        self._first_time_connected = True
         self._listen = None
         self._running = False
 
@@ -27,9 +28,10 @@ class Wallet:
         self._listen = True
         while self._listen:
             try:
-                plugin.log("Connecting to the relay...")
                 await self.connect()  # Connect to the relay
-                await self.send_info_event()  # publish kind 13194 info event
+                if self._first_time_connected:
+                    await self.publish_info_event()  # publish kind 13194 info event
+                    self._first_time_connected = False  # Update the flag
                 # subscribe to nwc requests
                 await self.subscribe(filter={"kinds": [23194], "#p": [plugin.pubkey]})
                 await self.listen()
