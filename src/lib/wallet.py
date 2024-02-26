@@ -79,7 +79,7 @@ class Wallet:
 
     async def send_info_event(self):
         supported_methods = ["pay_invoice",
-                             "make_invoice", "get_info", "pay_keysend"]
+                             "make_invoice", "get_info", "pay_keysend", "lookup_invoice", "get_balance"]
         nip47_info_event = InfoEvent(supported_methods)
 
         nip47_info_event.sign(privkey=plugin.privkey.hex())
