@@ -288,6 +288,7 @@ class NIP47RequestHandler:
             "pay_keysend": self._pay_keysend,
             "get_info": self._get_info,
             "lookup_invoice": self._lookup_invoice,
+            "get_balance": self._get_balance,
         }
 
         self.request = request
@@ -393,6 +394,16 @@ class NIP47RequestHandler:
             "created_at": int(time.time()),
             "expires_at": invoice.get("expires_at"),
             "payment_hash": invoice.get("payment_hash")
+        }
+
+    async def _get_balance(self, params):
+        peer_channels = plugin.rpc.listpeerchannels()["channels"]
+
+        node_balance = sum([Millisatoshi(channel.get("spendable_msat"))
+                           for channel in peer_channels])
+
+        return {
+            "balance": int(node_balance),
         }
 
     async def _lookup_invoice(self, params):
