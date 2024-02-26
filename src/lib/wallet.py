@@ -25,21 +25,28 @@ class Wallet:
     async def run(self):
         """connect, subscribe, and listen for incoming events"""
         self._listen = True
-        await self.connect()  # TODO: error handling
-
-        await self.send_info_event()
-
-        await self.subscribe(filter={
-            "kinds": [23194],
-            "#p": [plugin.pubkey]
-        })
-
-        await self.listen()
-
-        self._running = True
+        while self._listen:
+            try:
+                plugin.log("Connecting to the relay...")
+                await self.connect()  # Connect to the relay
+                await self.send_info_event()  # publish kind 13194 info event
+                # subscribe to nwc requests
+                await self.subscribe(filter={"kinds": [23194], "#p": [plugin.pubkey]})
+                await self.listen()
+            except websockets.exceptions.ConnectionClosedError as e:
+                plugin.log(
+                    f"Connection closed with error: {e}. Attempting to reconnect...")
+                # Wait for 5 seconds before trying to reconnect
+                await asyncio.sleep(5)
+            except Exception as e:
+                plugin.log(f"An unexpected error occurred: {e}")
+                self._listen = False  # Stop the loop if an unexpected error occurs
+            finally:
+                self._running = False
 
     async def connect(self):
         self.ws = await websockets.connect(self.uri)
+        self._running = True
 
     async def disconnect(self):
         """close websocket connection"""
