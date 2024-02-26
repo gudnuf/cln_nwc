@@ -102,7 +102,7 @@ WIP! Would be nice to add some CI, environment variables, etc.
 - ⚠️ description hash not supported
 - ⚠️ not all tx data is returned. Missing: description, description_hash, preimage, fees_paid, metadata
 
-❌ `get_balance` - not planning to implement
+✅ `get_balance`
 
 ✅ `lookup_invoice`
 
