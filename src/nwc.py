@@ -1,4 +1,4 @@
-#!/nix/store/asiphbpiy2gmidfm3xbwcikayhs66289-python3-3.11.7/bin/python
+#!/usr/bin/env python3
 
 """
 Entry point for this plugin
