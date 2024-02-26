@@ -7,7 +7,9 @@ Allows you to create permissioned connections between your node and apps. Paymen
 ## Starting the Plugin
 
 There are 3 ways to start a CLN plugin...
+
 ### Add to Your Config
+
 Find your c-lightning config file and add
 
 `plugin=/path/to/nwc.py`
@@ -72,7 +74,7 @@ The [`restart_plugin.sh`](./restart_plugin.sh) script takes an _optional argumen
 
 The tests are not automated right now.
 
-What you will need to do is make sure you have two nodes running in regtest per the above instructions. When you run start_ln, you will get aliases for `l1-cli` and `l2-cli`. The value of these aliases needs to be pasted into the test files where `l2` and `baseCliCommand` are specified. 
+What you will need to do is make sure you have two nodes running in regtest per the above instructions. When you run start_ln, you will get aliases for `l1-cli` and `l2-cli`. The value of these aliases needs to be pasted into the test files where `l2` and `baseCliCommand` are specified.
 
 Once you have specified the path to your node's cli, and you have 2 nodes running in your nix environment, the tests should run with `npx jest`.
 
@@ -85,21 +87,26 @@ WIP! Would be nice to add some CI, environment variables, etc.
 ❌ `expiration` tag in requests
 
 ✅ `get_info`
+
 - ⚠️ block_hash not supported
 
 ✅ `pay_invoice`
 
 ✅ `pay_keysend`
+
 - ⚠️ preimage in request not supported
 - ⚠️ tlv_records in request not supported
 
 ✅ `make_invoice`
+
 - ⚠️ description hash not supported
-- ⚠️ not all tx data is returned. Missing: description, description_has, preimage, fees_paid, metadata
+- ⚠️ not all tx data is returned. Missing: description, description_hash, preimage, fees_paid, metadata
 
 ❌ `get_balance` - not planning to implement
 
-❌ `lookup_invoice`
+✅ `lookup_invoice`
+
+- ⚠️ not all tx data is returned. Missing: description, description_hash, preimage, fees_paid, metadata
 
 ❌ `list_transactions`
 
