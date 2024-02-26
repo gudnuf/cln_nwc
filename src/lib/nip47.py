@@ -395,8 +395,6 @@ class NIP47RequestHandler:
 
     def add_to_spent(self, amount_sent_msat):
         key = self.connection.datastore_key
-        print(
-            f"SPENT: {self.connection.spent_msat} \n {Millisatoshi(amount_sent_msat)}")
         new_amount = self.connection.spent_msat + \
             Millisatoshi(amount_sent_msat)
         plugin.rpc.datastore(key=key, string=json.dumps({
@@ -481,8 +479,6 @@ class NIP47Request(Event):
 
     def success_response(self, result_type, result):
         """Formats a successful response."""
-        plugin.log(
-            f"sending nwc success response: {result_type} {result}", 'debug')
         return {
             "result_type": result_type,
             "result": result,
@@ -491,8 +487,6 @@ class NIP47Request(Event):
 
     def error_response(self, result_type, code: ErrorCodes, message=""):
         """Formats an error response."""
-        plugin.log(
-            f"sending nwc error response: {result_type} {code} {message}", 'debug')
         return {
             "result_type": result_type,
             "result": None,
