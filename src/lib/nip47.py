@@ -403,7 +403,7 @@ class NIP47RequestHandler:
                            for channel in peer_channels])
 
         return {
-            "balance": node_balance,
+            "balance": int(node_balance),
         }
 
     async def _lookup_invoice(self, params):
