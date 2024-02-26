@@ -2,9 +2,15 @@
 
 Allows you to create permissioned connections between your node and apps. Payment requests are sent over relays to your node.
 
-⚠️⚠️ Not production ready! Use at your own risk. ⚠️⚠️
+⚠️⚠️ Still beta, use at your own risk. ⚠️⚠️
+
+[Supported methods](#nip-47-supported-methods)
 
 ## Starting the Plugin
+
+First, make sure you have all the required packages installed. If using the nix instructions below you are good to go; otherwise, make sure everything in [requirements.txt](./requirements.txt) is installed.
+
+Next, make sure the shebang (`#!`) at the top of [nwc.py](./src/nwc.py) points to the python you just installed all those packages to.
 
 There are 3 ways to start a CLN plugin...
 
@@ -24,11 +30,38 @@ Find your c-lightning config file and add
 
 ## Using the plugin
 
-`nwc-create [budget_msat] [expiry_unix]` will get you an NWC URI. This needs to be pasted into the app you are connecting with.
+### Create a new connection
+
+`lightning-cli nwc-create [budget_msat] [expiry_unix]` will get you an NWC URI. This needs to be pasted into the app you are connecting with.
 
 Apps can now send supported NIP 47 requests to your node. If the request is valid (not expired, budget not exceeded, etc.), your node will perform the requested action and return an NIP 47 response.
 
-Keep budgets low and create new connections for each app. For now, you will have to use the `deldatastore` command to delete connections... `nwc-revoke pubkey` TBD
+Keep budgets low and create new connections for each app.
+
+### List connections
+
+`lightning-cli nwc-list`
+
+Response:
+
+```json
+{
+   "connections": [
+      {
+         "url": "nostr+walletconnect://cbe4ec8861b8bca3da08e83251f035f212881f2c7c3ff54392eb5b00ceaff63b?relay=wss://relay.getalby.com/v1&secret=630fb05b1bde7dab927d964c8d5123e32560b6873c5eb37e2c5f84a217102434",
+         "pubkey": "402deac84e04968d1a8cbaeac579119f87270e8efeaaac12febbce1d32857545",
+         "expiry_unix": null,
+         "remaining_budget_msat": "456234msat"
+      },
+  ]
+}
+```
+
+### Delete a connection
+
+`lightning-cli nwc-revoke`
+
+Response will be `true` if successful.
 
 ## Running the dev environment
 
@@ -78,7 +111,7 @@ What you will need to do is make sure you have two nodes running in regtest per 
 
 Once you have specified the path to your node's cli, and you have 2 nodes running in your nix environment, the tests should run with `npx jest`.
 
-WIP! Would be nice to add some CI, environment variables, etc.
+WIP! Would be nice to add some CI, environment variables, etc. Also need to implement my own wallet requests rather than using the Alby library because it does not return the exact format of the received event.
 
 ## NIP-47 Supported Methods
 
