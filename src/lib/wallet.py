@@ -15,6 +15,7 @@ class Wallet:
         self.uri = uri
         self.ws = None
         self.subscriptions = {}
+        self._first_time_connected = True
         self._listen = None
         self._running = False
 
@@ -25,21 +26,29 @@ class Wallet:
     async def run(self):
         """connect, subscribe, and listen for incoming events"""
         self._listen = True
-        await self.connect()  # TODO: error handling
-
-        await self.send_info_event()
-
-        await self.subscribe(filter={
-            "kinds": [23194],
-            "#p": [plugin.pubkey]
-        })
-
-        await self.listen()
-
-        self._running = True
+        while self._listen:
+            try:
+                await self.connect()  # Connect to the relay
+                if self._first_time_connected:
+                    await self.send_info_event()  # publish kind 13194 info event
+                    self._first_time_connected = False  # Update the flag
+                # subscribe to nwc requests
+                await self.subscribe(filter={"kinds": [23194], "#p": [plugin.pubkey]})
+                await self.listen()
+            except websockets.exceptions.ConnectionClosedError as e:
+                plugin.log(
+                    f"NWC relay connection closed with: {e}. Attempting to reconnect...", 'debug')
+                # Wait for 5 seconds before trying to reconnect
+                await asyncio.sleep(5)
+            except Exception as e:
+                plugin.log(f"An unexpected error occurred: {e}", 'error')
+                self._listen = False  # Stop the loop if an unexpected error occurs
+            finally:
+                self._running = False
 
     async def connect(self):
         self.ws = await websockets.connect(self.uri)
+        self._running = True
 
     async def disconnect(self):
         """close websocket connection"""
@@ -53,13 +62,13 @@ class Wallet:
             if data[0] == "EVENT":
                 await self.on_event(data=data[2])
             elif data[0] == "OK":
-                plugin.log(f"OK received {data}")
+                plugin.log(f"OK received {data}", 'debug')
             elif data[0] == "CLOSED":
-                plugin.log(f"CLOSED received {data}")
+                plugin.log(f"CLOSED received {data}", 'debug')
 
     async def subscribe(self, filter):
         """subscribe to a filter"""
-        plugin.log(f"SUBSCRIBING: {filter}")
+        plugin.log(f"nwc subscription: {filter}", 'info')
 
         sub_id = str(uuid.uuid4())[:64]
         await self.ws.send(json.dumps(["REQ", sub_id, filter]))
@@ -69,14 +78,14 @@ class Wallet:
         return sub_id
 
     async def send_info_event(self):
-        plugin.log("SENDING INFO EVENT")
         supported_methods = ["pay_invoice",
                              "make_invoice", "get_info", "pay_keysend"]
         nip47_info_event = InfoEvent(supported_methods)
 
         nip47_info_event.sign(privkey=plugin.privkey.hex())
 
-        plugin.log(f"INFO EVENT: {nip47_info_event.event_data()}")
+        plugin.log(
+            f"sending info event. Supported methods: {supported_methods}", 'info')
 
         await self.send_event(nip47_info_event.event_data())
 
@@ -98,7 +107,7 @@ class Wallet:
             dh_privkey_hex=plugin.privkey.hex()
         )
 
-        plugin.log(f"RESPOSNE: {response_content}")
+        plugin.log(f"nwc request exectuted: {response_content}", 'debug')
 
         response_event = NIP47Response(
             content=json.dumps(response_content),

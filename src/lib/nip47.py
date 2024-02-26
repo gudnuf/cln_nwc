@@ -288,8 +288,6 @@ class NIP47RequestHandler:
             "get_info": self._get_info
         }
 
-        plugin.log(f"REQUEST: {request}", 'debug')
-
         self.request = request
         self.connection = connection
 
@@ -351,7 +349,7 @@ class NIP47RequestHandler:
 
         if self.connection.budget_msat and self.connection.remaining_budget < invoice_msat:
             plugin.log(
-                f"nwc quota exceded for {self.connection.pubkey}", 'debug')
+                f"nwc quota exceded for {self.connection.pubkey}", 'info')
             raise QuotaExceededError()
 
         pay_result = plugin.rpc.pay(bolt11=invoice, amount_msat=amount)
@@ -397,8 +395,6 @@ class NIP47RequestHandler:
 
     def add_to_spent(self, amount_sent_msat):
         key = self.connection.datastore_key
-        print(
-            f"SPENT: {self.connection.spent_msat} \n {Millisatoshi(amount_sent_msat)}")
         new_amount = self.connection.spent_msat + \
             Millisatoshi(amount_sent_msat)
         plugin.rpc.datastore(key=key, string=json.dumps({
@@ -462,12 +458,10 @@ class NIP47Request(Event):
 
             execution_result = await request_handler.execute(request_payload.get("params"))
 
-            plugin.log(f"nwc request executed: {execution_result}", 'debug')
-
             return self.success_response(result_type=method, result=execution_result)
 
         except NWCError as e:
-            plugin.log(f"NWC ERROR: {e}", 'error')
+            plugin.log(f"NWC ERROR: {e}", 'debug')
             return self.error_response(result_type=method, code=e.code, message=e.message)
 
         except RpcError as e:
@@ -485,8 +479,6 @@ class NIP47Request(Event):
 
     def success_response(self, result_type, result):
         """Formats a successful response."""
-        plugin.log(
-            f"sending nwc success response: {result_type} {result}", 'debug')
         return {
             "result_type": result_type,
             "result": result,
@@ -495,8 +487,6 @@ class NIP47Request(Event):
 
     def error_response(self, result_type, code: ErrorCodes, message=""):
         """Formats an error response."""
-        plugin.log(
-            f"sending nwc error response: {result_type} {code} {message}", 'debug')
         return {
             "result_type": result_type,
             "result": None,
