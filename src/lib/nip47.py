@@ -343,6 +343,21 @@ class NIP47RequestHandler:
         invoice = params.get("invoice")
         amount = params.get("amount", None)
 
+        # check if invoice has a colon seperator
+        if ":" in invoice:
+            offer, amount_sat = invoice.split(":")
+            amount_msat = Millisatoshi(int(amount_sat) * 1000)
+            try:
+                invoice = plugin.rpc.fetchinvoice(offer=offer,amount_msat=amount_msat).get('invoice')
+                pay_result = plugin.rpc.pay(bolt11=invoice)
+                return self.handle_pay_result(pay_result)
+            except RpcError as e:
+                plugin.log(f"ERROR: {e}", 'error')
+                raise NWCError(ErrorCodes.INTERNAL)
+            except Exception as e:
+                plugin.log(f"ERROR: {e}", 'error')
+                raise NWCError(ErrorCodes.INTERNAL)
+
         invoice_msat = plugin.rpc.decodepay(
             bolt11=invoice).get("amount_msat", 0)
 
