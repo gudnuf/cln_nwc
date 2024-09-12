@@ -437,6 +437,7 @@ class NIP47RequestHandler:
                 # "fees_paid":
                 "created_at": int(time.time()),
                 "expires_at": invoice.get("expires_at"),
+                "settled_at": invoice.get("paid_at"),
             }
 
     def add_to_spent(self, amount_sent_msat):
