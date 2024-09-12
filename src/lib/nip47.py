@@ -419,7 +419,8 @@ class NIP47RequestHandler:
             invoices = plugin.rpc.listinvoices(
                 payment_hash=payment_hash).get("invoices", None)
         if invoice:
-            invoices = plugin.rpc.listinvoices(invstring=invoice)
+            invoices = plugin.rpc.listinvoices(
+                invstring=invoice).get("invoices", None)
 
         invoice = invoices[0] if invoices else None
         if not invoice:
