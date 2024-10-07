@@ -289,6 +289,7 @@ class NIP47RequestHandler:
             "get_info": self._get_info,
             "lookup_invoice": self._lookup_invoice,
             "get_balance": self._get_balance,
+            "list_transactions": self._list_transactions,
         }
 
         self.request = request
@@ -414,31 +415,148 @@ class NIP47RequestHandler:
             raise NWCError(ErrorCodes.OTHER,
                            "payment_hash and invoice cannot both be specified")
 
+        pays = []
         invoices = []
         if payment_hash:
             invoices = plugin.rpc.listinvoices(
                 payment_hash=payment_hash).get("invoices", None)
+            pays = plugin.rpc.listpays(
+                payment_hash=payment_hash).get("pays", None)
         if invoice:
-            invoices = plugin.rpc.listinvoices(
-                invstring=invoice).get("invoices", None)
+            invoices = plugin.rpc.listinvoices(invstring=invoice).get("invoices", None)
+            pays = plugin.rpc.listpays(bolt11=invoice).get("pays", None)
 
         invoice = invoices[0] if invoices else None
-        if not invoice:
+        payment = pays[0] if pays else None
+        if not invoice and not payment:
             raise NWCError(ErrorCodes.NOT_FOUND)
-        else:
+        elif invoice:
+            decoded = plugin.rpc.decode(invoice.get("bolt11"))
+            created_at = decoded.get("created_at")
+            description_hash = decoded.get("description_hash")
+            amount = int(invoice.get("amount_msat"))
             return {
                 "type": "incoming",
                 "invoice": invoice.get("bolt11"),
                 "description": invoice.get("description"),
-                # "description_hash": invoice.get("description_hash"),
+                "description_hash": description_hash,
                 "preimage": invoice.get("payment_preimage", None),
                 "payment_hash": invoice.get("payment_hash"),
-                "amount": invoice.get("amount_msat"),
-                # "fees_paid":
-                "created_at": int(time.time()),
+                "amount": amount,
+                "fees_paid": 0,
+                "created_at": created_at,
                 "expires_at": invoice.get("expires_at"),
-                "settled_at": invoice.get("paid_at"),
+                "settled_at": invoice.get("paid_at", None),
             }
+        else:
+            fees_paid = 0
+            if ( int(payment.get("amount_sent_msat")) and int(payment.get("amount_msat")) ):
+                fees_paid = int(payment.get("amount_sent_msat")) - int(payment.get("amount_msat"))
+            decoded = plugin.rpc.decode(payment.get("bolt11"))
+            description_hash = decoded.get("description_hash")
+            expires_at = payment.get("created_at") + decoded.get("expiry")
+            amount = int(decoded.get("amount_msat"))
+            return {
+                "type": "outgoing",
+                "invoice": payment.get("bolt11"),
+                "description": payment.get("description"),
+                "description_hash": description_hash,
+                "preimage": payment.get("preimage", None),
+                "payment_hash": payment.get("payment_hash"),
+                "amount": amount,
+                "fees_paid": fees_paid,
+                "created_at": payment.get("created_at"),
+                "expires_at": expires_at,
+                "settled_at": payment.get("completed_at"),
+            }
+
+    async def _list_transactions(self, params):
+        txs = []
+        include_unpaid = False
+        include_incoming = True
+        include_outgoing = True
+        if "unpaid" in params and params.get("unpaid") == True:
+            include_unpaid = True
+        if "type" in params and params.get("type") == "incoming":
+            include_outgoing = False
+        if "type" in params and params.get("type") == "outgoing":
+            include_incoming = False
+        if include_incoming:
+            all_invoices = plugin.rpc.listinvoices().get("invoices", [])
+            for tx in all_invoices:
+                if not tx.get("bolt11"): continue
+                if not ( ( include_unpaid and tx.get("status") == "unpaid" ) or tx.get("status") == "paid" ): continue
+                decoded = plugin.rpc.decode(tx.get("bolt11"))
+                created_at = decoded.get("created_at")
+                description_hash = decoded.get("description_hash")
+                amount = int(tx.get("amount_received_msat"))
+                txs.append({
+                    "type": "incoming",
+                    "invoice": tx.get("bolt11"),
+                    "description": tx.get("description"),
+                    "description_hash": description_hash,
+                    "preimage": tx.get("payment_preimage", None),
+                    "payment_hash": tx.get("payment_hash"),
+                    "amount": amount,
+                    "fees_paid": 0,
+                    "created_at": created_at,
+                    "expires_at": tx.get("expires_at"),
+                    "settled_at": tx.get("paid_at"),
+                })
+        if include_outgoing:
+            all_payments = plugin.rpc.listpays().get("pays", [])
+            for tx in all_payments:
+                if not tx.get("bolt11"): continue
+                if not ( ( include_unpaid and tx.get("status") != "complete" ) or tx.get("status") == "complete" ): continue
+                fees_paid = 0
+                if ( int(tx.get("amount_sent_msat")) and int(tx.get("amount_msat")) ):
+                    fees_paid = int(tx.get("amount_sent_msat")) - int(tx.get("amount_msat"))
+                decoded = plugin.rpc.decode(tx.get("bolt11"))
+                description_hash = decoded.get("description_hash")
+                expires_at = tx.get("created_at") + decoded.get("expiry")
+                amount = int(tx.get("amount_msat"))
+                txs.append({
+                    "type": "outgoing",
+                    "invoice": tx.get("bolt11"),
+                    "description": tx.get("description"),
+                    "description_hash": description_hash,
+                    "preimage": tx.get("preimage", None),
+                    "payment_hash": tx.get("payment_hash"),
+                    "amount": amount,
+                    "fees_paid": fees_paid,
+                    "created_at": tx.get("created_at"),
+                    "expires_at": expires_at,
+                    "settled_at": tx.get("completed_at"),
+                })
+        txs.sort(key=lambda x: x["created_at"], reverse=True)
+        if "from" in params and params[ "from" ]:
+            new_txs = []
+            for item in txs:
+                if item["created_at"] >= params.get("from"):
+                    new_txs.append( item )
+            txs = json.loads( json.dumps( new_txs ) )
+        if "until" in params and params[ "until" ]:
+            new_txs = []
+            for item in txs:
+                if item["created_at"] <= params.get("until"):
+                    new_txs.append( item )
+            txs = json.loads( json.dumps( new_txs ) )
+        if "offset" in params and params[ "offset" ]:
+            new_txs = []
+            for index, item in enumerate(txs):
+                if index >= params.get("offset"):
+                    new_txs.append( item )
+            txs = json.loads( json.dumps( new_txs ) )
+        if "limit" in params and params[ "limit" ]:
+            new_txs = []
+            for item in txs:
+                if len(new_txs) < params.get("limit"):
+                    new_txs.append( item )
+            txs = json.loads( json.dumps( new_txs ) )
+
+        return {
+            "transactions": txs
+        }
 
     def add_to_spent(self, amount_sent_msat):
         key = self.connection.datastore_key
