@@ -139,9 +139,7 @@ WIP! Would be nice to add some CI, environment variables, etc. Also need to impl
 
 ✅ `lookup_invoice`
 
-- ⚠️ not all tx data is returned. Missing: description, description_hash, preimage, fees_paid, metadata
-
-❌ `list_transactions`
+✅ `list_transactions`
 
 ❌ `multi_pay_invoice`
 
