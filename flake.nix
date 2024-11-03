@@ -3,73 +3,117 @@
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
   inputs.flake-utils.url = "github:numtide/flake-utils";
 
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        clightning = pkgs.clightning.overrideAttrs (final: prev: {
+        clightning = pkgs.clightning.overrideAttrs (
+          final: prev: {
             version = "v23.11rc1";
             src = pkgs.fetchFromGitHub {
-                owner = "ElementsProject";
-                repo = "lightning";
-                rev = "v23.11rc1";
-                fetchSubmodules = true;
-                sha256 = "sha256-qKmb++5DrJ8/hgg+mksOSPo3h5m3aAGOHBR6BkZw3TM=";
+              owner = "ElementsProject";
+              repo = "lightning";
+              rev = "v23.11rc1";
+              fetchSubmodules = true;
+              sha256 = "sha256-qKmb++5DrJ8/hgg+mksOSPo3h5m3aAGOHBR6BkZw3TM=";
             };
             configureFlags = [ "--disable-valgrind" ];
             makeFlags = [ "VERSION=v23.11rc1" ];
-        });
+          }
+        );
         pyln_bolt7 = pkgs.python3Packages.buildPythonPackage rec {
-            pname = "pyln_bolt7";
-            version = "cd894663";
-            src = pkgs.fetchFromGitHub {
-              owner = "niftynei";
-              repo = "${pname}";
-              rev = "${version}";
-              sha256 = "sha256-//XG8aF2mW5DX0sBsAV1bL+9RLrvUXYpPSX9bz5f/OU=";
-            };
-            doCheck = false;
-            propagatedBuildInputs = [];
+          pname = "pyln_bolt7";
+          version = "cd894663";
+          src = pkgs.fetchFromGitHub {
+            owner = "niftynei";
+            repo = "${pname}";
+            rev = "${version}";
+            sha256 = "sha256-//XG8aF2mW5DX0sBsAV1bL+9RLrvUXYpPSX9bz5f/OU=";
+          };
+          doCheck = false;
+          propagatedBuildInputs = [ ];
         };
         bech32ref = pkgs.python3Packages.buildPythonPackage rec {
-            pname = "bech32ref";
-            version = "5f11b2e";
-            src = pkgs.fetchFromGitHub {
-              owner = "niftynei";
-              repo = "${pname}";
-              rev = "${version}";
-              sha256 = "sha256-fvR6y2FpEE5sWLDOGLCOR180W15P5t+PmroHRNbWQbA=";
-            };
-            doCheck = false;
-            propagatedBuildInputs = [];
+          pname = "bech32ref";
+          version = "5f11b2e";
+          src = pkgs.fetchFromGitHub {
+            owner = "niftynei";
+            repo = "${pname}";
+            rev = "${version}";
+            sha256 = "sha256-fvR6y2FpEE5sWLDOGLCOR180W15P5t+PmroHRNbWQbA=";
+          };
+          doCheck = false;
+          propagatedBuildInputs = [ ];
         };
         pyln_proto = pkgs.python3Packages.buildPythonPackage rec {
-            pname = "pyln_proto";
-            version = "87643bed";
-            src = pkgs.fetchFromGitHub {
-              owner = "niftynei";
-              repo = "${pname}";
-              rev = "${version}";
-              sha256 = "sha256-q8Qh39e23C0jyerRlfobArKwWB9Zj3ghFS479oxcep8=";
-            };
-            doCheck = false;
-            propagatedBuildInputs = [];
+          pname = "pyln_proto";
+          version = "87643bed";
+          src = pkgs.fetchFromGitHub {
+            owner = "niftynei";
+            repo = "${pname}";
+            rev = "${version}";
+            sha256 = "sha256-q8Qh39e23C0jyerRlfobArKwWB9Zj3ghFS479oxcep8=";
+          };
+          doCheck = false;
+          propagatedBuildInputs = [ ];
         };
         pyln_client = pkgs.python3Packages.buildPythonPackage rec {
-            pname = "pyln_client";
-            version = "23.5.2";
-            src = pkgs.fetchFromGitHub {
-              inherit version;
-              owner = "niftynei";
-              repo = "${pname}";
-              rev = "250b8a2";
-              sha256 = "sha256-vhGyBA5C5bgi5nMHgs9hjIUGOOKTwV31/OeBnQJUaL0=";
-            };
-            doCheck = false;
-            propagatedBuildInputs = [ pyln_proto pyln_bolt7];
+          pname = "pyln_client";
+          version = "23.5.2";
+          src = pkgs.fetchFromGitHub {
+            inherit version;
+            owner = "niftynei";
+            repo = "${pname}";
+            rev = "250b8a2";
+            sha256 = "sha256-vhGyBA5C5bgi5nMHgs9hjIUGOOKTwV31/OeBnQJUaL0=";
+          };
+          doCheck = false;
+          propagatedBuildInputs = [
+            pyln_proto
+            pyln_bolt7
+          ];
+        };
+
+        # Build a custom Python environment with the required packages
+        nwc-python = pkgs.python3.withPackages (
+          ps: with ps; [
+            pyln_client
+            pyln_proto
+            pyln_bolt7
+            bech32ref
+            base58
+            bitstring
+            pysocks
+            cryptography
+            coincurve
+            websockets
+          ]
+        );
+
+        nwc = pkgs.stdenv.mkDerivation {
+          name = "nwc";
+          src = ./src;
+          buildInputs = [ nwc-python ];
+          buildPhase = ''
+            # Replace shebang in nwc.py with custom Python interpreter
+            sed -i "1s:.*:#!${nwc-python}/bin/python:" nwc.py
+          '';
+          installPhase = ''
+            mkdir -p $out/bin
+            cp -r * $out/bin/
+            chmod +x $out/bin/nwc.py
+          '';
         };
       in
       {
+        packages.default = nwc;
+
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             bashInteractive
@@ -86,19 +130,24 @@
             libeatmydata
             gawk
 
-            (python3.withPackages (ps: with ps; with python3Packages; [
-              ipython
-              pip
-              base58
-              bitstring
-              pysocks
-              cryptography
-              coincurve
-              websockets
-              jupyter
-              pylint
-              autopep8
-            ]))
+            (python3.withPackages (
+              ps:
+              with ps;
+              with python3Packages;
+              [
+                ipython
+                pip
+                base58
+                bitstring
+                pysocks
+                cryptography
+                coincurve
+                websockets
+                jupyter
+                pylint
+                autopep8
+              ]
+            ))
           ];
           # Automatically run jupyter when entering the shell.
           shellHook = ''
@@ -109,7 +158,8 @@
           '';
 
           BITCOIN_BIN_DIR = "${pkgs.bitcoind}/bin";
-          LIGHTNING_BIN_DIR= "${clightning}/bin";
+          LIGHTNING_BIN_DIR = "${clightning}/bin";
         };
-      });
+      }
+    );
 }
